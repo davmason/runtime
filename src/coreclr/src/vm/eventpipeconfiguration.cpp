@@ -39,7 +39,9 @@ void EventPipeConfiguration::Initialize()
         0, /* keywords */
         0, /* eventVersion */
         EventPipeEventLevel::LogAlways,
-        false); /* needStack */
+        false, /* needStack */
+        nullptr, /* pMetdata */
+        0); /* metadataLength */
 }
 
 void EventPipeConfiguration::Shutdown()

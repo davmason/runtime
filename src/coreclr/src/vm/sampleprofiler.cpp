@@ -55,7 +55,10 @@ void SampleProfiler::Initialize(EventPipeProviderCallbackDataQueue* pEventPipePr
             0, /* keywords */
             0, /* eventVersion */
             EventPipeEventLevel::Informational,
-            false /* NeedStack */);
+            false, /* NeedStack */
+            // TODO: add metadata for this event?
+            nullptr, /* pMetadata */
+            0); /* metadataLength */
     }
 }
 

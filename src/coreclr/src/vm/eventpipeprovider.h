@@ -76,7 +76,7 @@ public:
 
     // Create a new event.
     EventPipeEvent* AddEvent(unsigned int eventID, INT64 keywords, unsigned int eventVersion, EventPipeEventLevel level, bool needStack,
-        BYTE *pMetadata = NULL, unsigned int metadataLength = 0);
+        BYTE *pMetadata, unsigned int metadataLength);
 
 private:
 

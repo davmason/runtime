@@ -141,7 +141,7 @@ def generateClrEventPipeWriteEventsImpl(
         providerPrettyName +
         " = EventPipe::CreateProvider(SL(" +
         providerPrettyName +
-        "Name), " + callbackName + ");\n")
+        "Name), " + callbackName + ");\n\n")
     for eventNode in eventNodes:
         eventName = eventNode.getAttribute('symbol')
         templateName = eventNode.getAttribute('template')
@@ -159,9 +159,69 @@ def generateClrEventPipeWriteEventsImpl(
             if tokens[2] == eventName:
                 needStack = "false"
 
-        initEvent = """    EventPipeEvent%s = EventPipeProvider%s->AddEvent(%s,%s,%s,%s,%s);
-""" % (eventName, providerPrettyName, eventValue, eventKeywordsMask, eventVersion, eventLevel, needStack)
+        WriteEventImpl.append("    size_t %sMetadataLength = 0;\n" % (eventName))
 
+        if templateName:
+            fnSig = allTemplates[templateName].signature
+        else:
+            fnSig = None
+
+        hasIllegalTypes = False
+        if fnSig:
+            # TODO: it would be nice if we could handle all of these
+            # check for Ansi strings, which we don't have a way to represent in metadata
+            # and for win:Pointer which is variably sized. This can probably be fixed, just have to check
+            # what size void * is on the current platform
+            # win:Struct, need to investigate what it is. Don't see it in clretwall.man
+            for paramName in fnSig.paramlist:
+                parameter = fnSig.getParam(paramName)
+                if parameter.winType == "win:AnsiString" or parameter.winType == "win:Pointer" or parameter.winType == "win:Struct":
+                    hasIllegalTypes = True
+                    break
+
+        if fnSig and not hasIllegalTypes and len(fnSig.paramlist) > 0:
+            WriteEventImpl.append("    EventPipeParameterDesc p%sParams[] = {\n" % (eventName))
+
+            for paramName in fnSig.paramlist:
+                parameter = fnSig.getParam(paramName)
+
+                eventParamTemplate = "        { %s, %s, W(\"%s\") },\n"
+                if parameter.winType == "win:Boolean":
+                    WriteEventImpl.append(eventParamTemplate % ("EventPipeParameterType::Boolean", "EventPipeParameterType::Empty", parameter.name))
+                elif parameter.winType == "win:UInt8" or parameter.winType == "win:Binary":
+                    WriteEventImpl.append(eventParamTemplate % ("EventPipeParameterType::Byte", "EventPipeParameterType::Empty", parameter.name))
+                elif parameter.winType == "win:UInt16":
+                    WriteEventImpl.append(eventParamTemplate % ("EventPipeParameterType::UInt16", "EventPipeParameterType::Empty", parameter.name))
+                elif parameter.winType == "win:UInt32":
+                    WriteEventImpl.append(eventParamTemplate % ("EventPipeParameterType::UInt32", "EventPipeParameterType::Empty", parameter.name))
+                elif parameter.winType == "win:UInt64":
+                    WriteEventImpl.append(eventParamTemplate % ("EventPipeParameterType::UInt64", "EventPipeParameterType::Empty", parameter.name))
+                elif parameter.winType == "win:Int32":
+                    WriteEventImpl.append(eventParamTemplate % ("EventPipeParameterType::Int32", "EventPipeParameterType::Empty", parameter.name))
+                elif parameter.winType == "win:Int64":
+                    WriteEventImpl.append(eventParamTemplate % ("EventPipeParameterType::Int64", "EventPipeParameterType::Empty", parameter.name))
+                elif parameter.winType == "win:Double":
+                    WriteEventImpl.append(eventParamTemplate % ("EventPipeParameterType::Double", "EventPipeParameterType::Empty", parameter.name))
+                elif parameter.winType == "win:UnicodeString":
+                    WriteEventImpl.append(eventParamTemplate % ("EventPipeParameterType::String", "EventPipeParameterType::Empty", parameter.name))
+                elif parameter.winType == "win:GUID":
+                    WriteEventImpl.append(eventParamTemplate % ("EventPipeParameterType::Guid", "EventPipeParameterType::Empty", parameter.name))
+                elif parameter.name == "ActivityId" or parameter.name == "RelatedActivityId":
+                    continue
+                else:
+                    WriteEventImpl.append("#error you have added a previously unhandled type %s that genEventPipe.py doesn't currently know about.\n" % (parameter.winType));
+
+
+            WriteEventImpl.append("    };\n")
+            WriteEventImpl.append("    UINT32 %sParamCount = %s;\n" % (eventName, len(fnSig.paramlist)))
+        else:
+            WriteEventImpl.append("    EventPipeParameterDesc *p%sParams = NULL;\n" % (eventName))
+            WriteEventImpl.append("    UINT32 %sParamCount = 0;\n" % (eventName))
+
+        metadata =  "    BYTE *p%sMetadata = EventPipeMetadataGenerator::GenerateEventMetadata(%s,W(\"%s\"),%s,%s,%s,%s,p%sParams,%sParamCount,&%sMetadataLength);\n" % (eventName, eventValue, eventName, eventKeywordsMask, eventVersion, eventLevel, 0, eventName, eventName, eventName)
+        WriteEventImpl.append(metadata)
+
+        initEvent = "    EventPipeEvent%s = EventPipeProvider%s->AddEvent(%s,%s,%s,%s,%s,p%sMetadata,(unsigned int)%sMetadataLength);\n\n" % (eventName, providerPrettyName, eventValue, eventKeywordsMask, eventVersion, eventLevel, needStack, eventName, eventName)
         WriteEventImpl.append(initEvent)
     WriteEventImpl.append("}")
 
@@ -393,6 +453,7 @@ def generateEventPipeImplFiles(
 
                 header = """
 #include "{root:s}/vm/common.h"
+#include "{root:s}/vm/eventpipemetadatagenerator.h"
 #include "{root:s}/vm/eventpipeprovider.h"
 #include "{root:s}/vm/eventpipeevent.h"
 #include "{root:s}/vm/eventpipe.h"
