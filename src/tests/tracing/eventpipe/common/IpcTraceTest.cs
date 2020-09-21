@@ -391,21 +391,26 @@ namespace Tracing.Tests.Common
         {
             Logger.logger.Log("==TEST STARTING==");
             var test = new IpcTraceTest(expectedEventCounts, eventGeneratingAction, sessionConfiguration, optionalTraceValidator);
-            try
-            {
+            // try
+            // {
                 var ret = test.Validate();
                 if (ret == 100)
+                {
                     Logger.logger.Log("==TEST FINISHED: PASSED!==");
+                    return ret;
+                }
                 else
+                {
                     Logger.logger.Log("==TEST FINISHED: FAILED!==");
-                return ret;
-            }
-            catch (Exception e)
-            {
-                Logger.logger.Log(e.ToString());
-                Logger.logger.Log("==TEST FINISHED: FAILED!==");
-                return -1;
-            }
+                    throw new Exception("Test failed, purposefully crashing...");
+                }
+            // }
+            // catch (Exception e)
+            // {
+            //     Logger.logger.Log(e.ToString());
+            //     Logger.logger.Log("==TEST FINISHED: FAILED!==");
+            //     throw e;
+            // }
         }
     }
 }
