@@ -340,6 +340,10 @@ DWORD SequencePoints::MapNativeOffsetToIL(DWORD                  dwNativeOffset,
         // prologue is also 0.
         // If the end offset is 0, we want to check if we're in the prologue before concluding that the
         // value of dwNativeOffset is out of range.
+
+        LOG((LF_CORDB,LL_INFO10000,"SequencePoints::MapNativeOffsetToIL: Checking range startOffset = 0x%x endOffset = 0x%x ilOffset = 0x%x \n",
+        m_map[i].nativeStartOffset, m_map[i].nativeEndOffset, m_map[i].ilOffset));
+
         if ((dwNativeOffset >= m_map[i].nativeStartOffset) &&
             (((m_map[i].nativeEndOffset == 0) && (m_map[i].ilOffset != (ULONG)ICorDebugInfo::PROLOG)) ||
              (dwNativeOffset < m_map[i].nativeEndOffset)))
@@ -369,6 +373,9 @@ DWORD SequencePoints::MapNativeOffsetToIL(DWORD                  dwNativeOffset,
             {
                 (*pMapType) = MAPPING_APPROXIMATE;
             }
+
+            LOG((LF_CORDB,LL_INFO10000,"SequencePoints::MapNativeOffsetToIL: Offset = 0x%x result = 0x%x\n",
+            dwNativeOffset, pMapType == NULL ? 0 : *pMapType));
             return uILOffset;
         }
     }

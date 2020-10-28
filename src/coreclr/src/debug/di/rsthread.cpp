@@ -7952,6 +7952,9 @@ HRESULT CordbJITILFrame::GetIP(ULONG32 *pnOffset,
     if (pMappingResult)
         *pMappingResult = m_mapping;
 
+    LOG((LF_CORDB,LL_INFO10000,"CordbJITILFrame::GetIP: Offset = 0x%x result = 0x%x nativeIP=0x%x\n",
+    *pnOffset, pMappingResult == NULL ? 0 : *pMappingResult, m_nativeFrame->GetIPOffset()));
+    
     return S_OK;
 }
 
