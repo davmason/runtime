@@ -68,7 +68,7 @@ EventPipeDataDescriptor EventPipeMetadataReader::ParseField(LPCBYTE pMetadata, U
         name = ReadFromBuffer<WCHAR *>(pMetadata, cbMetadata, offset);
     }
 
-    descriptor.name = name;
+    descriptor.name = String(name);
 
     return descriptor;
 }

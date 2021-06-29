@@ -63,7 +63,7 @@ HRESULT SlowPathELTProfiler::Initialize(IUnknown* pICorProfilerInfoUnk)
     constexpr ULONG bufferSize = 1024;
     ULONG envVarLen = 0;
     WCHAR envVar[bufferSize];
-    if (FAILED(hr = pCorProfilerInfo->GetEnvironmentVariable(WCHAR("Profiler_Test_Name"),
+    if (FAILED(hr = pCorProfilerInfo->GetEnvironmentVariable(U("Profiler_Test_Name"),
                                                              bufferSize,
                                                              &envVarLen,
                                                              envVar)))
@@ -75,12 +75,12 @@ HRESULT SlowPathELTProfiler::Initialize(IUnknown* pICorProfilerInfoUnk)
 
     size_t nullCharPos = std::min(bufferSize - 1, envVarLen);
     envVar[nullCharPos] = 0;
-    if (wcscmp(envVar, WCHAR("ELTSlowPathEnter")) == 0)
+    if (wcscmp(envVar, U("ELTSlowPathEnter")) == 0)
     {
         wcout << L"Testing enter hooks" << endl;
         _testType = TestType::EnterHooks;
     }
-    else if (wcscmp(envVar, WCHAR("ELTSlowPathLeave")) == 0)
+    else if (wcscmp(envVar, U("ELTSlowPathLeave")) == 0)
     {
         wcout << L"Testing leave hooks" << endl;
         _testType = TestType::LeaveHooks;
@@ -196,13 +196,13 @@ HRESULT STDMETHODCALLTYPE SlowPathELTProfiler::EnterCallback(FunctionIDOrClientI
     }
 
     String functionName = GetFunctionIDName(functionIdOrClientID.functionID);
-    if (functionName == WCHAR("SimpleArgsFunc"))
+    if (functionName == U("SimpleArgsFunc"))
     {
         _sawSimpleFuncEnter = true;
 
         int x = -123;
         float f = -4.3f;
-        const WCHAR *str = WCHAR("Hello, test!");
+        const WCHAR *str = U("Hello, test!");
 
         vector<ExpectedArgValue> expectedValues = { { sizeof(int), (void *)&x, [&](UINT_PTR ptr){ return ValidateInt(ptr, x); } },
                                                     { sizeof(float), (void *)&f, [&](UINT_PTR ptr){ return ValidateFloat(ptr, f); }  },
@@ -210,7 +210,7 @@ HRESULT STDMETHODCALLTYPE SlowPathELTProfiler::EnterCallback(FunctionIDOrClientI
 
         hr = ValidateFunctionArgs(pArgumentInfo, functionName, expectedValues);
     }
-    else if (functionName == WCHAR("MixedStructFunc"))
+    else if (functionName == U("MixedStructFunc"))
     {
         _sawMixedStructFuncEnter = true;
 
@@ -221,7 +221,7 @@ HRESULT STDMETHODCALLTYPE SlowPathELTProfiler::EnterCallback(FunctionIDOrClientI
         
         hr = ValidateFunctionArgs(pArgumentInfo, functionName, expectedValues);
     }
-    else if (functionName == WCHAR("LargeStructFunc"))
+    else if (functionName == U("LargeStructFunc"))
     {
         _sawLargeStructFuncEnter = true;
 
@@ -252,16 +252,16 @@ HRESULT STDMETHODCALLTYPE SlowPathELTProfiler::LeaveCallback(FunctionIDOrClientI
     }
 
     String functionName = GetFunctionIDName(functionIdOrClientID.functionID);
-    if (functionName == WCHAR("SimpleArgsFunc"))
+    if (functionName == U("SimpleArgsFunc"))
     {
         _sawSimpleFuncLeave = true;
 
-        const WCHAR *str = WCHAR("Hello from SimpleArgsFunc!");
+        const WCHAR *str = U("Hello from SimpleArgsFunc!");
 
         ExpectedArgValue simpleRetValue = { sizeof(UINT_PTR), (void *)str, [&](UINT_PTR ptr){ return ValidateString(ptr, str); } };
         hr = ValidateOneArgument(pRetvalRange, functionName, 0, simpleRetValue);
     }
-    else if (functionName == WCHAR("MixedStructFunc"))
+    else if (functionName == U("MixedStructFunc"))
     {
         _sawMixedStructFuncLeave = true;
 
@@ -269,7 +269,7 @@ HRESULT STDMETHODCALLTYPE SlowPathELTProfiler::LeaveCallback(FunctionIDOrClientI
         ExpectedArgValue MixedStructRetValue = { sizeof(MixedStruct), (void *)&ss, [&](UINT_PTR ptr){ return ValidateMixedStruct(ptr, ss); } };
         hr = ValidateOneArgument(pRetvalRange, functionName, 0, MixedStructRetValue);
     }
-    else if (functionName == WCHAR("LargeStructFunc"))
+    else if (functionName == U("LargeStructFunc"))
     {
         _sawLargeStructFuncLeave = true;
 
@@ -277,7 +277,7 @@ HRESULT STDMETHODCALLTYPE SlowPathELTProfiler::LeaveCallback(FunctionIDOrClientI
         ExpectedArgValue largeStructRetValue = { sizeof(int32_t), (void *)&val, [&](UINT_PTR ptr){ return ValidateInt(ptr, val); } };
         hr = ValidateOneArgument(pRetvalRange, functionName, 0, largeStructRetValue);
     }
-    else if (functionName == WCHAR("IntegerStructFunc"))
+    else if (functionName == U("IntegerStructFunc"))
     {
         _sawIntegerStructFuncLeave = true;
 
@@ -285,7 +285,7 @@ HRESULT STDMETHODCALLTYPE SlowPathELTProfiler::LeaveCallback(FunctionIDOrClientI
         ExpectedArgValue integerStructRetValue = { sizeof(IntegerStruct), (void *)&is, [&](UINT_PTR ptr){ return ValidateIntegerStruct(ptr, is); } };
         hr = ValidateOneArgument(pRetvalRange, functionName, 0, integerStructRetValue);
     }
-    else if (functionName == WCHAR("FloatingPointStructFunc"))
+    else if (functionName == U("FloatingPointStructFunc"))
     {
         _sawFloatingPointStructFuncLeave = true;
 
@@ -293,7 +293,7 @@ HRESULT STDMETHODCALLTYPE SlowPathELTProfiler::LeaveCallback(FunctionIDOrClientI
         ExpectedArgValue floatingPointStructRetValue = { sizeof(FloatingPointStruct), (void *)&fps, [&](UINT_PTR ptr){ return ValidateFloatingPointStruct(ptr, fps); } };
         hr = ValidateOneArgument(pRetvalRange, functionName, 0, floatingPointStructRetValue);
     }
-    else if (functionName == WCHAR("DoubleRetFunc"))
+    else if (functionName == U("DoubleRetFunc"))
     {
         _sawDoubleRetFuncLeave = true;
 

@@ -91,6 +91,7 @@ private:
     std::atomic<int> refCount;
     ProfilerCallback callback;
     ManualEvent callbackSet;
+    Logger logger;
     
 
 protected:
@@ -219,4 +220,17 @@ public:
     ULONG STDMETHODCALLTYPE Release(void) override;
 
     void SetCallback(ProfilerCallback callback);
+
+    template<class ...Args>
+    void LogFailure(StringView fmtString, Args... args)
+    {
+        logger.Write(U("FAIL: "));
+        logger.WriteLine(fmtString, args...);
+    }
+
+    template<class ...Args>
+    void LogMessage(StringView fmtString, Args... args)
+    {
+        logger.WriteLine(fmtString, args...);
+    }
 };

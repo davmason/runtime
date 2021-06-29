@@ -7,25 +7,26 @@
 #include <cwctype>
 #include <iostream>
 #include <mutex>
-#include <string>
-#include <string_view>
 #include <stdexcept>
+#include <type_traits>
+
+#include "profilerstring.h"
 
 class Logger
 {
     class LoggerException
     {
     private:
-        std::wstring _message;
+        String _message;
 
     public:
-        LoggerException(std::wstring message) :
+        LoggerException(String message) :
             _message(message)
         {
 
         }
 
-        std::wstring &what()
+        String& what()
         {
             return _message;
         }
@@ -34,14 +35,14 @@ class Logger
 private:
     std::mutex _lock;
 
-    bool Equals(std::wstring_view lhs, std::wstring_view rhs)
+    bool Equals(StringView lhs, StringView rhs)
     {
-        if (lhs.size() != rhs.size())
+        if (lhs.Size() != rhs.Size())
         {
             return false;
         }
 
-        for (int i = 0; i < lhs.size(); ++i)
+        for (size_t i = 0; i < lhs.Size(); ++i)
         {
             if (std::towlower(lhs[i]) != std::towlower(rhs[i]))
             {
@@ -52,38 +53,42 @@ private:
         return true;
     }
 
-    std::wstring_view GetFormatSpecifier(std::wstring_view fmtSpecifier)
+    StringView GetFormatSpecifier(StringView fmtSpecifier)
     {
         if (fmtSpecifier[0] != '{')
         {
-            throw LoggerException(std::wstring(L"illegal start to format specifier ") += fmtSpecifier);
+            throw LoggerException(String(U("illegal start to format specifier ")) += fmtSpecifier);
+        }
+        else if (fmtSpecifier.Size() <= 2)
+        {
+            throw LoggerException(String(U("empty fmt specifier")));
         }
 
-        for (auto it = fmtSpecifier.begin(); it != fmtSpecifier.end(); ++it)
+        for (size_t i = 1; i < fmtSpecifier.Size(); ++i)
         {
-            if (*it == L'}')
+            if (fmtSpecifier[i] == L'}')
             {
-                std::wstring_view specifier(fmtSpecifier.begin() + 1, it);
+                StringView specifier(&fmtSpecifier[1], i - 1);
                 return specifier;
             }
         }
 
-        throw LoggerException(L"unterminated format specifier");
+        throw LoggerException(String(U("unterminated format specifier")));
     }
 
-    std::wstring_view WriteUntilNextFormat(std::wstring_view str)
+    StringView WriteUntilNextFormat(StringView str)
     {
         bool maybeFormat = false;
-        for (auto it = str.begin(); it != str.end(); ++it)
+        for (size_t i = 0; i < str.Size(); ++i)
         {
             if (maybeFormat)
             {
-                if (*it != L'{')
+                if (str[i] != L'{')
                 {
-                    std::wstring_view tailWithFmt(--it, str.end());
-                    if (tailWithFmt.size() < 2)
+                    StringView tailWithFmt(&str[i - 1]);
+                    if (tailWithFmt.Size() < 2)
                     {
-                        throw LoggerException(L"invalid or missing format string");
+                        throw LoggerException(String(U("invalid or missing format string")));
                     }
 
                     return tailWithFmt;
@@ -91,45 +96,137 @@ private:
 
                 maybeFormat = false;
             }
-            else if (*it == L'{')
+            else if (str[i] == L'{')
             {
                 maybeFormat = true;
                 continue;
             }
 
-            std::wcout << *it;
+            std::wcout << str[i];
+        }
+
+        return StringView();
+    }
+
+    template<class ...Args>
+    void WriteLineHelper(StringView fmtString)
+    {
+        StringView fmtSpecifier = WriteUntilNextFormat(fmtString);
+        if (!fmtSpecifier.Empty())
+        {
+            throw LoggerException(String(U("The following format specifier has no argument: ")) += fmtSpecifier);
         }
     }
 
     template<class ...Args>
-    void WriteLineHelper(std::wstring_view fmtString, std::wstring arg1, Args... args)
+    void WriteLineHelper(StringView fmtString, String arg1, Args... args)
     {
-        std::wstring_view format = WriteUntilNextFormat(fmtString);
+        return WriteLineHelper(fmtString, StringView(arg1), args...);
+    }
 
-        // Any malformed format specifiered should have been handled by WriteUntilNextFormat
-        assert(format.size() > 2);
+    template<class ...Args>
+    void WriteLineHelper(StringView fmtString, const WCHAR *arg1, Args... args)
+    {
+        return WriteLineHelper(fmtString, StringView(arg1), args...);
+    }
 
-        std::wstring_view fmtSpecifier = GetFormatSpecifier(format);
-        assert(fmtSpecifier.size() > 0);
+    template<class ...Args>
+    void WriteLineHelper(StringView fmtString, StringView arg1, Args... args)
+    {
+        StringView format = WriteUntilNextFormat(fmtString);
+        StringView fmtSpecifier = GetFormatSpecifier(format);
 
-        if (Equals(fmtSpecifier, L"s")
-            || Equals(fmtSpecifier, L"str"))
+        if (Equals(fmtSpecifier, U("s"))
+            || Equals(fmtSpecifier, U("str")))
         {
             std::wcout << arg1;
-            std::wstring_view tail(format.begin() + fmtSpecifier.size(), format.end());
-            WriteLineHelper(tail, args...);
-            return;
+        }
+        else
+        {
+            throw LoggerException(String(U("invalid format string ")) += fmtSpecifier);
         }
 
-        throw LoggerException(std::wstring(L"invalid format string ") += fmtSpecifier);
+        size_t index = fmtSpecifier.Size() + 2;
+        StringView tail(&format[index]);
+        WriteLineHelper(tail, args...);
     }
 
+    template<class T, class ...Args>
+    void WriteLineHelper(StringView fmtString, T arg1, Args... args)
+    {
+
+        StringView format = WriteUntilNextFormat(fmtString);
+        StringView fmtSpecifier = GetFormatSpecifier(format);
+
+        if (Equals(fmtSpecifier, U("i"))
+            || Equals(fmtSpecifier, U("int")))
+        {
+            if (!std::is_integral<T>::value)
+            {
+                throw LoggerException(String(U("Format specifier is invalid ")) += fmtSpecifier);
+            }
+
+            std::wcout << arg1;
+        }
+        else if (Equals(fmtSpecifier, U("x"))
+                 || Equals(fmtSpecifier, U("hex"))
+                 || Equals(fmtSpecifier, U("p"))
+                 || Equals(fmtSpecifier, U("ptr"))
+                 || Equals(fmtSpecifier, U("hr")))
+        {
+            if (!std::is_integral<T>::value)
+            {
+                throw LoggerException(String(U("Format specifier is invalid ")) += fmtSpecifier);
+            }
+            
+
+            std::wcout << U("0x") << std::hex << arg1;
+        }
+        else if (Equals(fmtSpecifier, U("d"))
+                 || Equals(fmtSpecifier, U("double"))
+                 || Equals(fmtSpecifier, U("f"))
+                 || Equals(fmtSpecifier, U("float")))
+        {
+            if (!std::is_floating_point<T>::value)
+            {
+                throw LoggerException(String(U("Format specifier is invalid ")) += fmtSpecifier);
+            }
+
+            std::wcout << arg1;
+        }
+        else
+        {
+            throw LoggerException(String(U("Format specifier is invalid ")) += fmtSpecifier);
+        }
+
+        size_t index = fmtSpecifier.Size() + 2;
+        StringView tail;
+        if (index >= format.Size())
+        {
+            tail = U("");
+        }
+        else
+        {
+            tail = &format[index];
+        }
+
+        WriteLineHelper(tail, args...);
+    }
 public:
     template<class ...Args>
-    void WriteLine(std::wstring_view fmtString, Args... args)
+    void Write(StringView fmtString, Args... args)
     {
         // So we can use cout without interleaving output
-        std::lock_guard guard(_lock);
+        std::lock_guard<std::mutex> guard(_lock);
+
+        WriteLineHelper(fmtString, args...);
+    }
+
+    template<class ...Args>
+    void WriteLine(StringView fmtString, Args... args)
+    {
+        // So we can use cout without interleaving output
+        std::lock_guard<std::mutex> guard(_lock);
 
         WriteLineHelper(fmtString, args...);
 

@@ -85,5 +85,5 @@ HRESULT Transitions::ManagedToUnmanagedTransition(FunctionID functionID, COR_PRF
 bool Transitions::FunctionIsTargetFunction(FunctionID functionID)
 {
     String name = GetFunctionIDName(functionID);
-    return name == WCHAR("DoPInvoke");
+    return name == U("DoPInvoke");
 }

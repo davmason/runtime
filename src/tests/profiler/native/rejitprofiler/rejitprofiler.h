@@ -62,8 +62,8 @@ private:
     ModuleID _targetModuleId;
     mdMethodDef _targetMethodDef;
 
-    const String ReJITTriggerMethodName = WCHAR("TriggerReJIT");
-    const String RevertTriggerMethodName = WCHAR("TriggerRevert");
-    const String TargetMethodName = WCHAR("InlineeTarget");
-    const String TargetModuleName = WCHAR("rejit.dll");
+    const String ReJITTriggerMethodName = String(U("TriggerReJIT"));
+    const String RevertTriggerMethodName = String(U("TriggerRevert"));
+    const String TargetMethodName = String(U("InlineeTarget"));
+    const String TargetModuleName = String(U("rejit.dll"));
 };

@@ -19,6 +19,7 @@ set(SOURCES
     transitions/transitions.cpp
     profiler.def
     profiler.cpp
+    profilerstring.cpp
     classfactory.cpp
     dllmain.cpp
     guids.cpp)

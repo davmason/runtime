@@ -12,7 +12,12 @@ Profiler *Profiler::Instance = nullptr;
 std::atomic<bool> ShutdownGuard::s_preventHooks(false);
 std::atomic<int> ShutdownGuard::s_hooksInProgress(0);
 
-Profiler::Profiler() : refCount(0), pCorProfilerInfo(nullptr)
+Profiler::Profiler() :
+    refCount(0),
+    callback(),
+    callbackSet(),
+    logger(),
+    pCorProfilerInfo(nullptr)
 {
     Profiler::Instance = this;
 }
@@ -577,7 +582,7 @@ String Profiler::GetFunctionIDName(FunctionID funcId)
     // If the FunctionID is 0, we could be dealing with a native function.
     if (funcId == 0)
     {
-        return WCHAR("Unknown_Native_Function");
+        return String(U("Unknown_Native_Function"));
     }
 
     String name;
@@ -601,7 +606,7 @@ String Profiler::GetFunctionIDName(FunctionID funcId)
     if (FAILED(hr))
     {
         printf("FAIL: GetFunctionInfo2 call failed with hr=0x%x\n", hr);
-        return WCHAR("FuncNameLookupFailed");
+        return String(U("FuncNameLookupFailed"));
     }
 
     COMPtrHolder<IMetaDataImport> pIMDImport;
@@ -612,7 +617,7 @@ String Profiler::GetFunctionIDName(FunctionID funcId)
     if (FAILED(hr))
     {
         printf("FAIL: GetModuleMetaData call failed with hr=0x%x\n", hr);
-        return WCHAR("FuncNameLookupFailed");
+        return String(U("FuncNameLookupFailed"));
     }
 
     WCHAR funcName[STRING_LENGTH];
@@ -629,25 +634,25 @@ String Profiler::GetFunctionIDName(FunctionID funcId)
     if (FAILED(hr))
     {
         printf("FAIL: GetMethodProps call failed with hr=0x%x", hr);
-        return WCHAR("FuncNameLookupFailed");
+        return String(U("FuncNameLookupFailed"));
     }
 
     name += funcName;
 
     // Fill in the type parameters of the generic method
     if (nTypeArgs > 0)
-        name += WCHAR("<");
+        name += U("<");
 
     for(ULONG32 i = 0; i < nTypeArgs; i++)
     {
         name += GetClassIDName(typeArgs[i]);
 
         if ((i + 1) != nTypeArgs)
-            name += WCHAR(", ");
+            name += U(", ");
     }
 
     if (nTypeArgs > 0)
-        name += WCHAR(">");
+        name += U(">");
 
     return name;
 }
@@ -664,7 +669,7 @@ String Profiler::GetClassIDName(ClassID classId)
     if (classId == NULL)
     {
         printf("FAIL: Null ClassID passed in\n");
-        return WCHAR("");
+        return String(U(""));
     }
 
     hr = pCorProfilerInfo->GetClassIDInfo2(classId,
@@ -677,22 +682,22 @@ String Profiler::GetClassIDName(ClassID classId)
     if (CORPROF_E_CLASSID_IS_ARRAY == hr)
     {
         // We have a ClassID of an array.
-        return WCHAR("ArrayClass");
+        return String(U("ArrayClass"));
     }
     else if (CORPROF_E_CLASSID_IS_COMPOSITE == hr)
     {
         // We have a composite class
-        return WCHAR("CompositeClass");
+        return String(U("CompositeClass"));
     }
     else if (CORPROF_E_DATAINCOMPLETE == hr)
     {
         // type-loading is not yet complete. Cannot do anything about it.
-        return WCHAR("DataIncomplete");
+        return String(U("DataIncomplete"));
     }
     else if (FAILED(hr))
     {
         printf("FAIL: GetClassIDInfo returned 0x%x for ClassID %x\n", hr, (unsigned int)classId);
-        return WCHAR("GetClassIDNameFailed");
+        return String(U("GetClassIDNameFailed"));
     }
 
     COMPtrHolder<IMetaDataImport> pMDImport;
@@ -703,7 +708,7 @@ String Profiler::GetClassIDName(ClassID classId)
     if (FAILED(hr))
     {
         printf("FAIL: GetModuleMetaData call failed with hr=0x%x\n", hr);
-        return WCHAR("ClassIDLookupFailed");
+        return String(U("ClassIDLookupFailed"));
     }
 
     WCHAR wName[LONG_LENGTH];
@@ -717,12 +722,12 @@ String Profiler::GetClassIDName(ClassID classId)
     if (FAILED(hr))
     {
         printf("FAIL: GetModuleMetaData call failed with hr=0x%x\n", hr);
-        return WCHAR("ClassIDLookupFailed");
+        return String(U("ClassIDLookupFailed"));
     }
 
-    String name = wName;
+    String name(wName);
     if (nTypeArgs > 0)
-        name += WCHAR("<");
+        name += U("<");
 
     for(ULONG32 i = 0; i < nTypeArgs; i++)
     {
@@ -732,11 +737,11 @@ String Profiler::GetClassIDName(ClassID classId)
         name += GetClassIDName(typeArgs[i]);
 
         if ((i + 1) != nTypeArgs)
-            name += WCHAR(", ");
+            name += U(", ");
     }
 
     if (nTypeArgs > 0)
-        name += WCHAR(">");
+        name += U(">");
 
     return name;
 }
@@ -750,7 +755,7 @@ String Profiler::GetModuleIDName(ModuleID modId)
     if (modId == NULL)
     {
         printf("FAIL: Null ModuleID\n");
-        return WCHAR("NullModuleIDPassedIn");
+        return String(U("NullModuleIDPassedIn"));
     }
 
     HRESULT hr = pCorProfilerInfo->GetModuleInfo(modId,
@@ -762,10 +767,10 @@ String Profiler::GetModuleIDName(ModuleID modId)
     if (FAILED(hr))
     {
         printf("FAIL: GetModuleInfo call failed with hr=0x%x\n", hr);
-        return WCHAR("ModuleIDLookupFailed");
+        return String(U("ModuleIDLookupFailed"));
     }
 
-    return moduleName;
+    return String(moduleName);
 }
 
 void Profiler::SetCallback(ProfilerCallback cb)

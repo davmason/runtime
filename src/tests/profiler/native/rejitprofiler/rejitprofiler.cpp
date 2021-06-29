@@ -333,7 +333,7 @@ HRESULT STDMETHODCALLTYPE ReJITProfiler::GetReJITParameters(ModuleID moduleId, m
     }
 
 
-    const WCHAR *wszNewUserDefinedString = WCHAR("Hello from profiler rejit!");
+    const WCHAR *wszNewUserDefinedString = U("Hello from profiler rejit!");
     mdString tokmdsUserDefined = mdTokenNil;
     hr = pTargetEmit->DefineUserString(wszNewUserDefinedString,
                                        (ULONG)wcslen(wszNewUserDefinedString),

@@ -35,7 +35,7 @@ HRESULT EventPipeReadingProfiler::Initialize(IUnknown* pICorProfilerInfoUnk)
     }
 
     COR_PRF_EVENTPIPE_PROVIDER_CONFIG providers[] = {
-        { WCHAR("EventPipeTestEventSource"), 0xFFFFFFFFFFFFFFFF, 5, NULL }
+        { U("EventPipeTestEventSource"), 0xFFFFFFFFFFFFFFFF, 5, NULL }
     };
 
     hr = _pCorProfilerInfo12->EventPipeStartSession(sizeof(providers) / sizeof(providers[0]),
@@ -93,17 +93,17 @@ HRESULT EventPipeReadingProfiler::EventPipeEventDelivered(
 
     EventPipeMetadataInstance metadata = GetOrAddMetadata(metadataBlob, cbMetadataBlob);
 
-    if (metadata.name == WCHAR("MyEvent")
+    if (metadata.name == U("MyEvent")
         && ValidateMyEvent(metadata, provider, eventId, eventVersion, cbMetadataBlob, metadataBlob, cbEventData, eventData, pActivityId, pRelatedActivityId, eventThread, numStackFrames, stackFrames))
     {
         _events++;
     }
-    else if (metadata.name == WCHAR("MyArrayEvent")
+    else if (metadata.name == U("MyArrayEvent")
              && ValidateMyArrayEvent(metadata, provider, eventId, eventVersion, cbMetadataBlob, metadataBlob, cbEventData, eventData, pActivityId, pRelatedActivityId, eventThread, numStackFrames, stackFrames))
     {
         _events++;
     }
-    else if (metadata.name == WCHAR("KeyValueEvent")
+    else if (metadata.name == U("KeyValueEvent")
              && ValidateKeyValueEvent(metadata, provider, eventId, eventVersion, cbMetadataBlob, metadataBlob, cbEventData, eventData, pActivityId, pRelatedActivityId, eventThread, numStackFrames, stackFrames))
     {
         _events++;
@@ -138,7 +138,7 @@ String EventPipeReadingProfiler::GetOrAddProviderName(EVENTPIPE_PROVIDER provide
         if (FAILED(hr))
         {
             printf("EventPipeGetProviderInfo failed with hr=0x%x\n", hr);
-            return WCHAR("GetProviderInfo failed");
+            return String(U("GetProviderInfo failed"));
         }
 
         _providerNameCache.insert({provider, String(nameBuffer)});
@@ -191,7 +191,7 @@ bool EventPipeReadingProfiler::ValidateMyEvent(
     }
 
     EventPipeDataDescriptor param = metadata.parameters[0];
-    if (param.name != WCHAR("i")
+    if (param.name != U("i")
         || param.type != EventPipeTypeCode::Int32)
     {
         wprintf(L"MyEvent expected param name=i type=Int32, saw name=%s type=%d\n",
@@ -235,7 +235,7 @@ bool EventPipeReadingProfiler::ValidateMyArrayEvent(
     }
 
     EventPipeDataDescriptor param0 = metadata.parameters[0];
-    if (param0.name != WCHAR("ch")
+    if (param0.name != U("ch")
         || param0.type != EventPipeTypeCode::Char)
     {
         wprintf(L"MyArrayEvent expected param 0 name=ch type=Char, saw name=%s type=%d\n", 
@@ -255,7 +255,7 @@ bool EventPipeReadingProfiler::ValidateMyArrayEvent(
     }
 
     EventPipeDataDescriptor param1 = metadata.parameters[1];
-    if (param1.name != WCHAR("intArray")
+    if (param1.name != U("intArray")
         || param1.type != EventPipeTypeCode::ArrayType
         || param1.elementType->type != EventPipeTypeCode::Int32)
     {
@@ -285,7 +285,7 @@ bool EventPipeReadingProfiler::ValidateMyArrayEvent(
     }
 
     EventPipeDataDescriptor param2 = metadata.parameters[2];
-    if (param2.name != WCHAR("str")
+    if (param2.name != U("str")
         || param2.type != EventPipeTypeCode::String)
     {
         wprintf(L"MyArrayEvent expected param 2 name=str type=String, saw name=%s type=%d\n", 
@@ -295,7 +295,7 @@ bool EventPipeReadingProfiler::ValidateMyArrayEvent(
     }
 
     WCHAR *stringValue = ReadFromBuffer<WCHAR *>(eventData, cbEventData, &offset);
-    if (String(WCHAR("Hello from EventPipeTestEventSource!")) != stringValue)
+    if (String(U("Hello from EventPipeTestEventSource!")) != stringValue)
     {
         wprintf(L"MyArrayEvent expected param2 value=\"Hello from EventPipeTestEventSource!\", saw %s\n",
             stringValue);
@@ -329,7 +329,7 @@ bool EventPipeReadingProfiler::ValidateKeyValueEvent(
     }
 
     EventPipeDataDescriptor param0 = metadata.parameters[0];
-    if (param0.name != WCHAR("SourceName")
+    if (param0.name != U("SourceName")
         || param0.type != EventPipeTypeCode::String)
     {
         wprintf(L"KeyValueEvent expected param 0 name=SourceName type=String, saw name=%s type=%d\n", 
@@ -340,7 +340,7 @@ bool EventPipeReadingProfiler::ValidateKeyValueEvent(
 
     ULONG offset = 0;
     WCHAR *str = ReadFromBuffer<WCHAR *>(eventData, cbEventData, &offset);
-    if (String(WCHAR("Source")) != str)
+    if (String(U("Source")) != str)
     {
         wprintf(L"MyArrayEvent expected param 0 value=\"Source\", saw %s\n", 
             str);
@@ -349,7 +349,7 @@ bool EventPipeReadingProfiler::ValidateKeyValueEvent(
     }
 
     EventPipeDataDescriptor param1 = metadata.parameters[1];
-    if (param1.name != WCHAR("EventName")
+    if (param1.name != U("EventName")
         || param1.type != EventPipeTypeCode::String)
     {
         wprintf(L"KeyValueEvent expected param 1 name=EventName type=String, saw name=%s type=%d\n", 
@@ -359,7 +359,7 @@ bool EventPipeReadingProfiler::ValidateKeyValueEvent(
     }
 
     WCHAR *event = ReadFromBuffer<WCHAR *>(eventData, cbEventData, &offset);
-    if (String(WCHAR("Event")) != event)
+    if (String(U("Event")) != event)
     {
         wprintf(L"MyArrayEvent expected param 1 value=\"Event\", saw %s\n", 
             event);
@@ -368,7 +368,7 @@ bool EventPipeReadingProfiler::ValidateKeyValueEvent(
     }
 
     EventPipeDataDescriptor param2 = metadata.parameters[2];
-    if (param2.name != WCHAR("Arguments")
+    if (param2.name != U("Arguments")
         || param2.type != EventPipeTypeCode::ArrayType
         || param2.elementType->type != EventPipeTypeCode::Object)
     {
@@ -387,7 +387,7 @@ bool EventPipeReadingProfiler::ValidateKeyValueEvent(
     }
 
     str = ReadFromBuffer<WCHAR *>(eventData, cbEventData, &offset);
-    if (String(WCHAR("samplekey")) != str)
+    if (String(U("samplekey")) != str)
     {
         wprintf(L"MyArrayEvent expected param 2 value=\"samplekey\", saw %s\n", 
             str);
@@ -396,7 +396,7 @@ bool EventPipeReadingProfiler::ValidateKeyValueEvent(
     }
 
     str = ReadFromBuffer<WCHAR *>(eventData, cbEventData, &offset);
-    if (String(WCHAR("samplevalue")) != str)
+    if (String(U("samplevalue")) != str)
     {
         wprintf(L"MyArrayEvent expected param 2 value=\"samplevalue\", saw %s\n", 
             str);

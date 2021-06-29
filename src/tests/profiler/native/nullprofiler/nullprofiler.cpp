@@ -23,7 +23,7 @@ HRESULT NullProfiler::Initialize(IUnknown* pICorProfilerInfoUnk)
     constexpr ULONG bufferSize = 1024;
     ULONG envVarLen = 0;
     WCHAR envVar[bufferSize];
-    if (FAILED(hr = pCorProfilerInfo->GetEnvironmentVariable(WCHAR("Profiler_Test_Name"),
+    if (FAILED(hr = pCorProfilerInfo->GetEnvironmentVariable(U("Profiler_Test_Name"),
                                                              bufferSize,
                                                              &envVarLen,
                                                              envVar)))
@@ -33,20 +33,20 @@ HRESULT NullProfiler::Initialize(IUnknown* pICorProfilerInfoUnk)
         return hr;
     }
 
-    if (wcscmp(envVar, WCHAR("ReverseStartup")) == 0)
+    if (wcscmp(envVar, U("ReverseStartup")) == 0)
     {
-        if (FAILED(hr = pCorProfilerInfo->GetEnvironmentVariable(WCHAR("ReverseServerTest_OverwriteMe"),
+        if (FAILED(hr = pCorProfilerInfo->GetEnvironmentVariable(U("ReverseServerTest_OverwriteMe"),
                                                                  bufferSize,
                                                                  &envVarLen,
                                                                  envVar))
-            || wcscmp(envVar, WCHAR("Overwritten")) != 0)
+            || wcscmp(envVar, U("Overwritten")) != 0)
         {
             wcout << L"Failed to get test name hr=" << std::hex << hr << endl;
             _failures++;
             return hr;
         }
 
-        hr = pCorProfilerInfo->GetEnvironmentVariable(WCHAR("ReverseServerTest_ClearMe"),
+        hr = pCorProfilerInfo->GetEnvironmentVariable(U("ReverseServerTest_ClearMe"),
                                                             bufferSize,
                                                             &envVarLen,
                                                             envVar);
