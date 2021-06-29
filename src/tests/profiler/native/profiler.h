@@ -14,6 +14,7 @@
 #include "holder.h"
 #include "profilerstring.h"
 #include "event.h"
+#include "logging.h"
 
 #if WIN32
 #define EXPORT
