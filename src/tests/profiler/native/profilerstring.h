@@ -47,7 +47,7 @@ private:
 
 public:
     StringView();
-    StringView(String str);
+    StringView(const String &str);
     StringView(const WCHAR* pChar);
     StringView(const WCHAR* pChar, size_t len);
     ~StringView() = default;

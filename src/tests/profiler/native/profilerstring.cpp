@@ -119,7 +119,7 @@ StringView::StringView() :
 
 }
 
-StringView::StringView(String str) :
+StringView::StringView(const String &str) :
     _data(str._buffer),
     _len(wcslen(str._buffer))
 {
@@ -294,7 +294,9 @@ bool String::operator==(const String& other) const
         return _buffer == other._buffer;
     }
 
-    return wcscmp(_buffer, other._buffer) == 0;
+    StringView lhs(*this);
+    StringView rhs(other);
+    return lhs == rhs;
 }
 
 bool String::operator!=(const String& other) const
@@ -304,7 +306,8 @@ bool String::operator!=(const String& other) const
 
 bool String::operator==(const StringView& other) const
 {
-    return StringView(*this) == other;
+    StringView lhs(*this);
+    return lhs == other;
 }
 
 bool String::operator!=(const StringView& other) const

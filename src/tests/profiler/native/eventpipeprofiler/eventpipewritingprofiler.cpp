@@ -196,7 +196,7 @@ HRESULT EventPipeWritingProfiler::FunctionSeen(FunctionID functionID)
     String functionName = GetFunctionIDName(functionID);
     if (functionName == U("TriggerMethod"))
     {
-        LogFailure(U("TriggerMethod found! Sending event..."));
+        LogMessage(U("TriggerMethod found! Sending event..."));
 
         COR_PRF_EVENT_DATA eventData[15];
 
