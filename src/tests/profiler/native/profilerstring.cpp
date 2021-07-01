@@ -5,6 +5,7 @@
 
 #include "cor.h"
 #include "profilerstring.h"
+#include <cwctype>
 
 #if !defined(_WIN32)
 size_t wcslen(const char16_t* str)
