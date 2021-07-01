@@ -80,7 +80,7 @@ HRESULT NullProfiler::Shutdown()
 
     if (_failures.load() == 0)
     {
-        printf("PROFILER TEST PASSES\n");
+        LogMessage(U("PROFILER TEST PASSES"));
     }
 
     fflush(stdout);

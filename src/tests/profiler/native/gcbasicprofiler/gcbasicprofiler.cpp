@@ -18,7 +18,7 @@ HRESULT GCBasicProfiler::Initialize(IUnknown* pICorProfilerInfoUnk)
     if (FAILED(hr = pCorProfilerInfo->SetEventMask2(0, 0x10)))
     {
         _failures++;
-        printf("FAIL: ICorProfilerInfo::SetEventMask2() failed hr=0x%x", hr);
+        LogFailure(U("ICorProfilerInfo::SetEventMask2() failed hr={HR}"), hr);
         return hr;
     }
 
@@ -31,15 +31,15 @@ HRESULT GCBasicProfiler::Shutdown()
 
     if (_gcStarts == 0)
     {
-        printf("GCBasicProfiler::Shutdown: FAIL: Expected GarbaseCollectionStarted to be called\n");
+        LogMessage(U("GCBasicProfiler::Shutdown: FAIL: Expected GarbaseCollectionStarted to be called"));
     }
     else if (_gcFinishes == 0)
     {
-        printf("GCBasicProfiler::Shutdown: FAIL: Expected GarbageCollectionFinished to be called\n");
+        LogMessage(U("GCBasicProfiler::Shutdown: FAIL: Expected GarbageCollectionFinished to be called"));
     }
     else if(_failures == 0)
     {
-        printf("PROFILER TEST PASSES\n");
+        LogMessage(U("PROFILER TEST PASSES"));
     }
     else
     {
@@ -61,7 +61,7 @@ HRESULT GCBasicProfiler::GarbageCollectionStarted(int cGenerations, BOOL generat
     if (_gcStarts - _gcFinishes > 2)
     {
         _failures++;
-        printf("GCBasicProfiler::GarbageCollectionStarted: FAIL: Expected GCStart <= GCFinish+2. GCStart=%d, GCFinish=%d\n", (int)_gcStarts, (int)_gcFinishes);
+        LogFailure(U("GCBasicProfiler::GarbageCollectionStarted: Expected GCStart <= GCFinish+2. GCStart={INT}, GCFinish={INT}"), (int)_gcStarts, (int)_gcFinishes);
         return S_OK;
     }
 
@@ -76,7 +76,7 @@ HRESULT GCBasicProfiler::GarbageCollectionStarted(int cGenerations, BOOL generat
         if (FAILED(hr))
         {
             _failures++;
-            printf("GCBasicProfiler::GarbageCollectionStarted: FAIL: GetGenerationBounds hr=0x%x\n", hr);
+            LogFailure(U("GCBasicProfiler::GarbageCollectionStarted: GetGenerationBounds hr={HR}"), hr);
             return S_OK;
         }
 
@@ -104,13 +104,13 @@ HRESULT GCBasicProfiler::GarbageCollectionStarted(int cGenerations, BOOL generat
                 if (objectRanges[i].rangeLength > GEN_FILLER)
                 {
                     _failures++;
-                    printf("GCBasicProfiler::GarbageCollectionStarted: FAIL: Expected initial gen1 rangeLength <= 0x%x. rangeLength=0x%p\n",
+                    LogFailure(U("GCBasicProfiler::GarbageCollectionStarted: Expected initial gen1 rangeLength <= {HEX} rangeLength={HEX}"),
                         GEN_FILLER, (void*)objectRanges[i].rangeLength);
                 }
                 if (objectRanges[i].rangeLengthReserved > GEN_FILLER)
                 {
                     _failures++;
-                    printf("GCBasicProfiler::GarbageCollectionStarted: FAIL: Expected initial gen1 rangeLengthReserved <= 0x%x. rangeLengthReserved=0x%p\n",
+                    LogFailure(U("GCBasicProfiler::GarbageCollectionStarted: Expected initial gen1 rangeLengthReserved <= {HEX} rangeLengthReserved={HEX}"),
                         GEN_FILLER, (void*)objectRanges[i].rangeLengthReserved);
                 }
                 break;
@@ -118,7 +118,7 @@ HRESULT GCBasicProfiler::GarbageCollectionStarted(int cGenerations, BOOL generat
                 break;
             default:
                 _failures++;
-                printf("GCBasicProfiler::GarbageCollectionStarted: FAIL: invalid generation: %d\n",objectRanges[i].generation);
+                LogFailure(U("GCBasicProfiler::GarbageCollectionStarted: FAIL: invalid generation: {INT}"), objectRanges[i].generation);
             }
         }
     }
@@ -133,7 +133,7 @@ HRESULT GCBasicProfiler::GarbageCollectionFinished()
     if (_gcStarts < _gcFinishes)
     {
         _failures++;
-        printf("GCBasicProfiler::GarbageCollectionFinished: FAIL: Expected GCStart >= GCFinish. Start=%d, Finish=%d\n", (int)_gcStarts, (int)_gcFinishes);
+        LogFailure(U("GCBasicProfiler::GarbageCollectionFinished: Expected GCStart >= GCFinish. Start={INT}, Finish={INT}"), (int)_gcStarts, (int)_gcFinishes);
     }
     return S_OK;
 }

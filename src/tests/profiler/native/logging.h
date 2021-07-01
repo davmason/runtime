@@ -151,6 +151,48 @@ private:
         WriteLineHelper(tail, args...);
     }
 
+    template<class ...Args>
+    void WriteLineHelper(StringView fmtString, char arg1, Args... args)
+    {
+        StringView format = WriteUntilNextFormat(fmtString);
+        StringView fmtSpecifier = GetFormatSpecifier(format);
+
+        if (Equals(fmtSpecifier, U("ch"))
+                 || Equals(fmtSpecifier, U("char")))
+        {
+            std::cout << arg1;
+        }
+        else
+        {
+            throw LoggerException(String(U("invalid format string ")) += fmtSpecifier);
+        }
+
+        size_t index = fmtSpecifier.Size() + 2;
+        StringView tail(&format[index]);
+        WriteLineHelper(tail, args...);
+    }
+
+    template<class ...Args>
+    void WriteLineHelper(StringView fmtString, WCHAR arg1, Args... args)
+    {
+        StringView format = WriteUntilNextFormat(fmtString);
+        StringView fmtSpecifier = GetFormatSpecifier(format);
+
+        if (Equals(fmtSpecifier, U("ch"))
+                 || Equals(fmtSpecifier, U("char")))
+        {
+            std::wcout << arg1;
+        }
+        else
+        {
+            throw LoggerException(String(U("invalid format string ")) += fmtSpecifier);
+        }
+
+        size_t index = fmtSpecifier.Size() + 2;
+        StringView tail(&format[index]);
+        WriteLineHelper(tail, args...);
+    }
+
     template<class T, class ...Args>
     void WriteLineHelper(StringView fmtString, T arg1, Args... args)
     {

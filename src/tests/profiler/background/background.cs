@@ -37,4 +37,5 @@ namespace BackgroundProfilerTests
         {
             return -1;
         }
+    }
 }

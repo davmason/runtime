@@ -17,19 +17,19 @@ HRESULT EventPipeReadingProfiler::Initialize(IUnknown* pICorProfilerInfoUnk)
 {
     Profiler::Initialize(pICorProfilerInfoUnk);
 
-    printf("EventPipeReadingProfiler::Initialize\n");
+    LogMessage(U("EventPipeReadingProfiler::Initialize"));
 
     HRESULT hr = S_OK;
     if (FAILED(hr = pICorProfilerInfoUnk->QueryInterface(__uuidof(ICorProfilerInfo12), (void **)&_pCorProfilerInfo12)))
     {
-        printf("FAIL: failed to QI for ICorProfilerInfo12.\n");
+        LogFailure(U("failed to QI for ICorProfilerInfo12."));
         _failures++;
         return hr;
     }
 
     if (FAILED(hr = _pCorProfilerInfo12->SetEventMask2(0, COR_PRF_HIGH_MONITOR_EVENT_PIPE)))
     {
-        printf("FAIL: ICorProfilerInfo::SetEventMask2() failed hr=0x%x\n", hr);
+        LogFailure(U("ICorProfilerInfo::SetEventMask2() failed hr={HR}"), hr);
         _failures++;
         return hr;
     }
@@ -44,12 +44,12 @@ HRESULT EventPipeReadingProfiler::Initialize(IUnknown* pICorProfilerInfoUnk)
                                                     &_session);
     if (FAILED(hr))
     {
-        printf("Failed to start event pipe session with hr=0x%x\n", hr);
+        LogFailure(U("Failed to start event pipe session with hr={HR}"), hr);
         _failures++;
         return hr;
     }
 
-    printf("Started event pipe session!\n");
+    LogMessage(U("Started event pipe session!"));
 
     return S_OK;
 }
@@ -60,12 +60,12 @@ HRESULT EventPipeReadingProfiler::Shutdown()
 
     if(_failures == 0 && _events.load() == 3)
     {
-        printf("PROFILER TEST PASSES\n");
+        LogMessage(U("PROFILER TEST PASSES"));
     }
     else
     {
         // failures were printed earlier when _failures was incremented
-        printf("EventPipe profiler test failed failures=%d events=%d.\n", _failures.load(), _events.load());
+        LogMessage(U("EventPipe profiler test failed failures={INT} events={INT}"), _failures.load(), _events.load());
     }
     fflush(stdout);
 
@@ -89,7 +89,7 @@ HRESULT EventPipeReadingProfiler::EventPipeEventDelivered(
     SHUTDOWNGUARD();
 
     String name = GetOrAddProviderName(provider);
-    wprintf(L"EventPipeReadingProfiler saw event %s\n", name.ToCStr());
+    LogMessage(U("EventPipeReadingProfiler saw event {STR}"), name);
 
     EventPipeMetadataInstance metadata = GetOrAddMetadata(metadataBlob, cbMetadataBlob);
 
@@ -117,7 +117,7 @@ HRESULT EventPipeReadingProfiler::EventPipeProviderCreated(EVENTPIPE_PROVIDER pr
     SHUTDOWNGUARD();
 
     String name = GetOrAddProviderName(provider);
-    wprintf(L"CorProfiler::EventPipeProviderCreated provider=%s\n", name.ToCStr());
+    LogMessage(U("CorProfiler::EventPipeProviderCreated provider={STR}"), name);
 
     return S_OK;
 }
@@ -137,7 +137,7 @@ String EventPipeReadingProfiler::GetOrAddProviderName(EVENTPIPE_PROVIDER provide
                                                                    nameBuffer);
         if (FAILED(hr))
         {
-            printf("EventPipeGetProviderInfo failed with hr=0x%x\n", hr);
+            LogFailure(U("EventPipeGetProviderInfo failed with hr={HR}"), hr);
             return String(U("GetProviderInfo failed"));
         }
 
@@ -185,8 +185,8 @@ bool EventPipeReadingProfiler::ValidateMyEvent(
 {
     if (metadata.parameters.size() != 1)
     {
-        printf("MyEvent expected param size 1, saw %d\n", (int)metadata.parameters.size());
         _failures++;
+        LogFailure(U("MyEvent expected param size 1, saw {INT}"), (int)metadata.parameters.size());
         return false;
     }
 
@@ -194,9 +194,9 @@ bool EventPipeReadingProfiler::ValidateMyEvent(
     if (param.name != U("i")
         || param.type != EventPipeTypeCode::Int32)
     {
-        wprintf(L"MyEvent expected param name=i type=Int32, saw name=%s type=%d\n",
-            param.name.ToCStr(), param.type);
         _failures++;
+        LogFailure(U("MyEvent expected param name=i type=Int32, saw name={STR} type={INT}"),
+            param.name, param.type);
         return false;
     }
 
@@ -204,8 +204,8 @@ bool EventPipeReadingProfiler::ValidateMyEvent(
     INT32 data = ReadFromBuffer<INT32>(eventData, cbEventData, &offset);
     if (data != 12)
     {
-        printf("MyEvent expected data=12, saw %d\n", data);
         _failures++;
+        LogFailure(U("MyEvent expected data=12, saw {INT}"), data);
         return false;
     }
 
@@ -229,8 +229,8 @@ bool EventPipeReadingProfiler::ValidateMyArrayEvent(
 {
     if (metadata.parameters.size() != 3)
     {
-        printf("MyArrayEvent expected param size 3, saw %d\n", (int)metadata.parameters.size());
         _failures++;
+        LogFailure(U("MyArrayEvent expected param size 3, saw {INT}"), (int)metadata.parameters.size());
         return false;
     }
 
@@ -238,9 +238,9 @@ bool EventPipeReadingProfiler::ValidateMyArrayEvent(
     if (param0.name != U("ch")
         || param0.type != EventPipeTypeCode::Char)
     {
-        wprintf(L"MyArrayEvent expected param 0 name=ch type=Char, saw name=%s type=%d\n", 
-            param0.name.ToCStr(), param0.type);
         _failures++;
+        LogFailure(U("MyArrayEvent expected param 0 name=ch type=Char, saw name={STR} type={INT}"), 
+            param0.name, param0.type);
         return false;
     }
 
@@ -248,9 +248,8 @@ bool EventPipeReadingProfiler::ValidateMyArrayEvent(
     WCHAR ch = ReadFromBuffer<WCHAR>(eventData, cbEventData, &offset);
     if (ch != 'd')
     {
-        printf("MyArrayEvent expected param 0 value=d, saw %c\n", 
-            ch);
         _failures++;
+        LogFailure(U("MyArrayEvent expected param 0 value=d, saw {CHAR}"), ch);
         return false;
     }
 
@@ -259,17 +258,17 @@ bool EventPipeReadingProfiler::ValidateMyArrayEvent(
         || param1.type != EventPipeTypeCode::ArrayType
         || param1.elementType->type != EventPipeTypeCode::Int32)
     {
-        wprintf(L"MyArrayEvent expected param 1 name=intArray type=Int32, saw name=%s type=%d\n", 
-            param1.name.ToCStr(), param1.elementType->type);
         _failures++;
+        LogFailure(U("MyArrayEvent expected param 1 name=intArray type=Int32, saw name={STR} type={INT}"), 
+            param1.name, param1.elementType->type);
         return false;
     }
 
     UINT16 arrayLength = ReadFromBuffer<UINT16>(eventData, cbEventData, &offset);
     if (arrayLength != 120)
     {
-        printf("MyArrayEvent expected array length 120, saw %d\n", arrayLength);
         _failures++;
+        LogFailure(U("MyArrayEvent expected array length 120, saw {INT}"), arrayLength);
         return false;
     }
 
@@ -278,8 +277,8 @@ bool EventPipeReadingProfiler::ValidateMyArrayEvent(
         INT32 data = ReadFromBuffer<INT32>(eventData, cbEventData, &offset);
         if (data != i)
         {
-            printf("MyArrayEvent expected array index %d value %d, saw %d\n", i, i, data);
             _failures++;
+            LogFailure(U("MyArrayEvent expected array index {INT} value {INT}, saw {INT}"), i, i, data);
             return false;
         }
     }
@@ -288,18 +287,18 @@ bool EventPipeReadingProfiler::ValidateMyArrayEvent(
     if (param2.name != U("str")
         || param2.type != EventPipeTypeCode::String)
     {
-        wprintf(L"MyArrayEvent expected param 2 name=str type=String, saw name=%s type=%d\n", 
-            param2.name.ToCStr(), param2.type);
         _failures++;
+        LogFailure(U("MyArrayEvent expected param 2 name=str type=String, saw name={STR} type={INT}"), 
+            param2.name, param2.type);
         return false;
     }
 
     WCHAR *stringValue = ReadFromBuffer<WCHAR *>(eventData, cbEventData, &offset);
     if (String(U("Hello from EventPipeTestEventSource!")) != stringValue)
     {
-        wprintf(L"MyArrayEvent expected param2 value=\"Hello from EventPipeTestEventSource!\", saw %s\n",
-            stringValue);
         _failures++;
+        LogFailure(U("MyArrayEvent expected param2 value=\"Hello from EventPipeTestEventSource!\", saw {STR}"),
+            stringValue);
         return false;
     }
 
@@ -323,8 +322,8 @@ bool EventPipeReadingProfiler::ValidateKeyValueEvent(
 {
     if (metadata.parameters.size() != 3)
     {
-        printf("KeyValueEvent expected param size 3, saw %d\n", (int)metadata.parameters.size());
         _failures++;
+        LogFailure(U("KeyValueEvent expected param size 3, saw {INT}"), (int)metadata.parameters.size());
         return false;
     }
 
@@ -332,9 +331,9 @@ bool EventPipeReadingProfiler::ValidateKeyValueEvent(
     if (param0.name != U("SourceName")
         || param0.type != EventPipeTypeCode::String)
     {
-        wprintf(L"KeyValueEvent expected param 0 name=SourceName type=String, saw name=%s type=%d\n", 
-            param0.name.ToCStr(), param0.type);
         _failures++;
+        LogFailure(U("KeyValueEvent expected param 0 name=SourceName type=String, saw name={STR} type={INT}"), 
+            param0.name, param0.type);
         return false;
     }
 
@@ -342,9 +341,9 @@ bool EventPipeReadingProfiler::ValidateKeyValueEvent(
     WCHAR *str = ReadFromBuffer<WCHAR *>(eventData, cbEventData, &offset);
     if (String(U("Source")) != str)
     {
-        wprintf(L"MyArrayEvent expected param 0 value=\"Source\", saw %s\n", 
-            str);
         _failures++;
+        LogFailure(U("MyArrayEvent expected param 0 value=\"Source\", saw {STR}"), 
+            str);
         return false;
     }
 
@@ -352,18 +351,18 @@ bool EventPipeReadingProfiler::ValidateKeyValueEvent(
     if (param1.name != U("EventName")
         || param1.type != EventPipeTypeCode::String)
     {
-        wprintf(L"KeyValueEvent expected param 1 name=EventName type=String, saw name=%s type=%d\n", 
-            param1.name.ToCStr(), param1.type);
         _failures++;
+        LogFailure(U("KeyValueEvent expected param 1 name=EventName type=String, saw name={STR} type={INT}"), 
+            param1.name, param1.type);
         return false;
     }
 
     WCHAR *event = ReadFromBuffer<WCHAR *>(eventData, cbEventData, &offset);
     if (String(U("Event")) != event)
     {
-        wprintf(L"MyArrayEvent expected param 1 value=\"Event\", saw %s\n", 
-            event);
         _failures++;
+        LogFailure(U("MyArrayEvent expected param 1 value=\"Event\", saw {STR}"), 
+            event);
         return false;
     }
 
@@ -372,33 +371,33 @@ bool EventPipeReadingProfiler::ValidateKeyValueEvent(
         || param2.type != EventPipeTypeCode::ArrayType
         || param2.elementType->type != EventPipeTypeCode::Object)
     {
-        wprintf(L"KeyValueEvent expected param 2 name=Arguments type=String, saw name=%s type=%d\n", 
-            param2.name.ToCStr(), param2.elementType->type);
         _failures++;
+        LogFailure(U("KeyValueEvent expected param 2 name=Arguments type=String, saw name={STR} type={INT}"), 
+            param2.name, param2.elementType->type);
         return false;
     }
 
     UINT16 arrayLength = ReadFromBuffer<UINT16>(eventData, cbEventData, &offset);
     if (arrayLength != 1)
     {
-        printf("MyArrayEvent expected array length 1, saw %d\n", arrayLength);
         _failures++;
+        LogFailure(U("MyArrayEvent expected array length 1, saw {INT}"), arrayLength);
         return false;
     }
 
     str = ReadFromBuffer<WCHAR *>(eventData, cbEventData, &offset);
     if (String(U("samplekey")) != str)
     {
-        wprintf(L"MyArrayEvent expected param 2 value=\"samplekey\", saw %s\n", 
-            str);
         _failures++;
+        LogFailure(U("MyArrayEvent expected param 2 value=\"samplekey\", saw {STR}"), 
+            str);
         return false;
     }
 
     str = ReadFromBuffer<WCHAR *>(eventData, cbEventData, &offset);
     if (String(U("samplevalue")) != str)
     {
-        wprintf(L"MyArrayEvent expected param 2 value=\"samplevalue\", saw %s\n", 
+        LogFailure(U("MyArrayEvent expected param 2 value=\"samplevalue\", saw {STR}"), 
             str);
         _failures++;
         return false;

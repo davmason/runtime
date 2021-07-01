@@ -29,6 +29,8 @@ enum class EventPipeTypeCode
     ArrayType = 19      // An arbitrary length array
 };
 
+std::wostream& operator<<(std::wostream& os, EventPipeTypeCode& code);
+
 enum class EventPipeV2Tag
 {
     Opcode = 1,

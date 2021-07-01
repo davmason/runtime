@@ -18,7 +18,7 @@ HRESULT GCProfiler::Initialize(IUnknown* pICorProfilerInfoUnk)
     if (FAILED(hr = pCorProfilerInfo->SetEventMask2(COR_PRF_MONITOR_GC, 0)))
     {
         _failures++;
-        printf("FAIL: ICorProfilerInfo::SetEventMask2() failed hr=0x%x", hr);
+        LogFailure(U("ICorProfilerInfo::SetEventMask2() failed hr={HR}"), hr);
         return hr;
     }
 
@@ -31,20 +31,20 @@ HRESULT GCProfiler::Shutdown()
 
     if (_gcStarts == 0)
     {
-        printf("GCProfiler::Shutdown: FAIL: Expected GarbaseCollectionStarted to be called\n");
+        LogMessage(U("GCProfiler::Shutdown: FAIL: Expected GarbaseCollectionStarted to be called"));
     }
     else if (_gcFinishes == 0)
     {
-        printf("GCProfiler::Shutdown: FAIL: Expected GarbageCollectionFinished to be called\n");
+        LogMessage(U("GCProfiler::Shutdown: FAIL: Expected GarbageCollectionFinished to be called"));
     }
     else if (_pohObjectsSeenRootReferences == 0 || _pohObjectsSeenObjectReferences == 0)
     {
-        printf("GCProfiler::Shutdown: FAIL: no POH objects seen. root references=%d object references=%d\n",
+        LogMessage(U("GCProfiler::Shutdown: FAIL: no POH objects seen. root references={INT} object references={INT}"),
             _pohObjectsSeenRootReferences.load(), _pohObjectsSeenObjectReferences.load());
     }
     else if(_failures == 0)
     {
-        printf("PROFILER TEST PASSES\n");
+        LogMessage(U("PROFILER TEST PASSES"));
     }
     else
     {
@@ -63,7 +63,7 @@ HRESULT GCProfiler::GarbageCollectionStarted(int cGenerations, BOOL generationCo
     if (_gcStarts - _gcFinishes > 2)
     {
         _failures++;
-        printf("GCProfiler::GarbageCollectionStarted: FAIL: Expected GCStart <= GCFinish+2. GCStart=%d, GCFinish=%d\n", (int)_gcStarts, (int)_gcFinishes);
+        LogFailure(U("GCProfiler::GarbageCollectionStarted: Expected GCStart <= GCFinish+2. GCStart={INT}, GCFinish={INT}"), (int)_gcStarts, (int)_gcFinishes);
     }
 
     return S_OK;
@@ -77,7 +77,7 @@ HRESULT GCProfiler::GarbageCollectionFinished()
     if (_gcStarts < _gcFinishes)
     {
         _failures++;
-        printf("GCProfiler::GarbageCollectionFinished: FAIL: Expected GCStart >= GCFinish. Start=%d, Finish=%d\n", (int)_gcStarts, (int)_gcFinishes);
+        LogFailure(U("GCProfiler::GarbageCollectionFinished: Expected GCStart >= GCFinish. Start={INT}, Finish={INT}"), (int)_gcStarts, (int)_gcFinishes);
     }
 
     _pohObjectsSeenObjectReferences += NumPOHObjectsSeen(_objectReferencesSeen);
@@ -129,7 +129,7 @@ int GCProfiler::NumPOHObjectsSeen(std::unordered_set<ObjectID> objects)
         HRESULT hr = pCorProfilerInfo->GetObjectGeneration(obj, &gen);
         if (FAILED(hr))
         {
-            printf("GetObjectGeneration failed hr=0x%x\n", hr);
+            LogFailure(U("GetObjectGeneration failed hr={HR}"), hr);
             return hr;
         }
 

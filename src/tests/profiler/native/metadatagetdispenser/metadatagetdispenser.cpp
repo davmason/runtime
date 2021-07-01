@@ -47,18 +47,18 @@ HRESULT MetaDataGetDispenser::Initialize(IUnknown* pICorProfilerInfoUnk)
     if (FAILED(hr))
     {
         _failures++;
-        printf("Profiler::Initialize failed with hr=0x%x\n", hr);
+        LogFailure(U("Profiler::Initialize failed with hr={HR}"), hr);
         return hr;
     }
 
-    printf("Initialize started\n");
+    LogMessage(U("Initialize started"));
 
     DWORD eventMaskLow = COR_PRF_MONITOR_MODULE_LOADS;
     DWORD eventMaskHigh = 0x0;
     if (FAILED(hr = pCorProfilerInfo->SetEventMask2(eventMaskLow, eventMaskHigh)))
     {
         _failures++;
-        printf("ICorProfilerInfo::SetEventMask2() failed hr=0x%x\n", hr);
+        LogFailure(U("ICorProfilerInfo::SetEventMask2() failed hr={HR}"), hr);
         return hr;
     }
 
@@ -71,11 +71,11 @@ HRESULT MetaDataGetDispenser::Shutdown()
 
     if(_failures == 0)
     {
-        printf("PROFILER TEST PASSES\n");
+        LogMessage(U("PROFILER TEST PASSES"));
     }
     else
     {
-        printf("Test failed number of failures=%d\n", _failures.load());
+        LogFailure(U("Test failed number of failures={INT}"), _failures.load());
     }
     fflush(stdout);
 
@@ -89,7 +89,7 @@ HRESULT MetaDataGetDispenser::ModuleLoadStarted(ModuleID moduleId)
     if (FAILED(hr))
     {
         _failures++;
-        printf("Failed to get IMetaDataDispenserEx\n");
+        LogFailure(U("Failed to get IMetaDataDispenserEx"));
         return E_FAIL;
     }
 
@@ -105,7 +105,7 @@ HRESULT MetaDataGetDispenser::ModuleLoadStarted(ModuleID moduleId)
     if (FAILED(hr))
     {
         _failures++;
-        printf("Failed to get ModuleInfo\n");
+        LogFailure(U("Failed to get ModuleInfo"));
         return E_FAIL;
     }
 
@@ -117,11 +117,11 @@ HRESULT MetaDataGetDispenser::ModuleLoadStarted(ModuleID moduleId)
     if (FAILED(hr))
     {
         _failures++;
-        printf("failed to get IMetaDataImport from dispenser.\n");
+        LogFailure(U("Failed to get IMetaDataImport from dispenser."));
         return E_FAIL;
     }
 
-    printf("ModuleLoadStarted exiting\n");
+    LogMessage(U("ModuleLoadStarted exiting"));
     return S_OK;
 }
 
@@ -135,7 +135,7 @@ HRESULT MetaDataGetDispenser::GetDispenser(IMetaDataDispenserEx **disp)
     if (coreclr == NULL)
     {
         _failures++;
-        printf("Failed to find coreclr.dll\n");
+        LogFailure(U("Failed to find coreclr.dll"));
         return E_FAIL;
     }
 
@@ -143,7 +143,7 @@ HRESULT MetaDataGetDispenser::GetDispenser(IMetaDataDispenserEx **disp)
     if (dispenserFunc == NULL)
     {
         _failures++;
-        printf("Failed to find MetaDataGetDispenser.\n");
+        LogFailure(U("Failed to find MetaDataGetDispenser."));
         return E_FAIL;
     }
 
@@ -152,12 +152,12 @@ HRESULT MetaDataGetDispenser::GetDispenser(IMetaDataDispenserEx **disp)
     if (FAILED(hr))
     {
         _failures++;
-        printf("Failed to call MetaDataGetDispenser.\n");
+        LogFailure(U("Failed to call MetaDataGetDispenser."));
         return hr;
     }
 
     FreeLibrary(coreclr);
-    printf("Got IMetaDataDispenserEx");
+    LogMessage(U("Got IMetaDataDispenserEx"));
     return S_OK;
 }
 
@@ -231,7 +231,7 @@ HRESULT MetaDataGetDispenser::GetDispenser(IMetaDataDispenserEx **disp)
     if (dispenserFunc == NULL)
     {
         _failures++;
-        printf("Failed to find MetaDataGetDispenser.\n");
+        LogFailure(U("Failed to find MetaDataGetDispenser."));
         return E_FAIL;
     }
 
@@ -239,12 +239,12 @@ HRESULT MetaDataGetDispenser::GetDispenser(IMetaDataDispenserEx **disp)
     if (FAILED(hr))
     {
         _failures++;
-        printf("Failed to call MetaDataGetDispenser.\n");
+        LogFailure(U("Failed to call MetaDataGetDispenser."));
         return hr;
     }
 
     dlclose(coreclr);
-    printf("Got IMetaDataDispenserEx\n");
+    LogMessage(U("Got IMetaDataDispenserEx"));
     return S_OK;
 }
 #endif // WIN32

@@ -22,11 +22,11 @@ ReleaseOnDetach::~ReleaseOnDetach()
     if (_failures == 0 && _detachSucceeded)
     {
         // If we're here, that means we were Released enough to trigger the destructor
-        printf("PROFILER TEST PASSES\n");
+        LogMessage(U("PROFILER TEST PASSES"));
     }
     else
     {
-        printf("Test failed _failures=%d _detachSucceeded=%d\n", _failures.load(), _detachSucceeded);
+        LogMessage(U("Test failed _failures={INT} _detachSucceeded={INT}"), _failures.load(), _detachSucceeded);
     }
 
     fflush(stdout);
@@ -47,18 +47,18 @@ HRESULT ReleaseOnDetach::InitializeForAttach(IUnknown* pICorProfilerInfoUnk, voi
     if (FAILED(hr))
     {
         _failures++;
-        printf("Profiler::Initialize failed with hr=0x%x\n", hr);
+        LogFailure(U("Profiler::Initialize failed with hr={HR}"), hr);
         return hr;
     }
 
-    printf("Initialize for attach started\n");
+    LogMessage(U("Initialize for attach started"));
 
     DWORD eventMaskLow = COR_PRF_MONITOR_MODULE_LOADS;
     DWORD eventMaskHigh = 0x0;
     if (FAILED(hr = pCorProfilerInfo->SetEventMask2(eventMaskLow, eventMaskHigh)))
     {
         _failures++;
-        printf("ICorProfilerInfo::SetEventMask2() failed hr=0x%x\n", hr);
+        LogFailure(U("ICorProfilerInfo::SetEventMask2() failed hr={HR}"), hr);
         return hr;
     }
 
@@ -80,11 +80,11 @@ HRESULT ReleaseOnDetach::ProfilerAttachComplete()
     if (FAILED(hr))
     {
         _failures++;
-        printf("RequestProfilerDetach failed with hr=0x%x\n", hr);
+        LogFailure(U("RequestProfilerDetach failed with hr={HR}"), hr);
     }
     else
     {
-        printf("RequestProfilerDetach successful\n");
+        LogMessage(U("RequestProfilerDetach successful"));
     }
 
     return S_OK;
@@ -94,7 +94,7 @@ HRESULT ReleaseOnDetach::ProfilerDetachSucceeded()
 {
     SHUTDOWNGUARD();
 
-    printf("Profiler detach succeeded\n");
+    LogMessage(U("Profiler detach succeeded"));
     _detachSucceeded = true;
     return S_OK;
 }

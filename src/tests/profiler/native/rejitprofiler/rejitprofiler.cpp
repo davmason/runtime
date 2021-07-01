@@ -22,10 +22,6 @@ using std::vector;
     #endif
 #endif
 
-#define _MESSAGE(LVL, MSG) std::wcout << "**" << LVL << "** " << __FUNCTION_NAME__ << " - " << MSG << std::endl;
-#define INFO(MSG) _MESSAGE("INFO", MSG)
-#define FAIL(MSG) _MESSAGE("FAIL", MSG)
-
 #ifdef __clang__
 #pragma clang diagnostic ignored "-Wnull-arithmetic"
 #endif // __clang__
@@ -57,7 +53,7 @@ HRESULT ReJITProfiler::Initialize(IUnknown* pICorProfilerInfoUnk)
     if (FAILED(hr))
     {
         _failures++;
-        FAIL(L"Profiler::Initialize failed with hr=" << std::hex << hr);
+        LogFailure(U("Profiler::Initialize failed with hr={HR}"), hr);
         return hr;
     }
 
@@ -65,11 +61,11 @@ HRESULT ReJITProfiler::Initialize(IUnknown* pICorProfilerInfoUnk)
     if (FAILED(hr))
     {
         _failures++;
-        FAIL(L"Could not QI for ICorProfilerInfo10");
+        LogFailure(U("Could not QI for ICorProfilerInfo10"));
         return hr;
     }
 
-    INFO(L"Initialize started");
+    LogMessage(U("Initialize started"));
 
     DWORD eventMaskLow = COR_PRF_ENABLE_REJIT |
                          COR_PRF_MONITOR_JIT_COMPILATION |
@@ -78,7 +74,7 @@ HRESULT ReJITProfiler::Initialize(IUnknown* pICorProfilerInfoUnk)
     if (FAILED(hr = pCorProfilerInfo->SetEventMask2(eventMaskLow, eventMaskHigh)))
     {
         _failures++;
-        FAIL(L"ICorProfilerInfo::SetEventMask2() failed hr=0x" << std::hex << hr);
+        LogFailure(U("ICorProfilerInfo::SetEventMask2() failed hr={HR}"), hr);
         return hr;
     }
 
@@ -103,15 +99,15 @@ HRESULT ReJITProfiler::Shutdown()
         expectedRejitCount = (int)((*it).second->size() + 1);
     }
 
-    INFO(L" rejit count=" << _rejits << L" expected rejit count=" << expectedRejitCount);
+    LogMessage(U("Rejit count={INT} expected rejit count={INT}"), _rejits.load(), expectedRejitCount);
 
     if(_failures == 0 && _rejits == expectedRejitCount)
     {
-        printf("PROFILER TEST PASSES\n");
+        LogMessage(U("PROFILER TEST PASSES"));
     }
     else
     {
-        FAIL(L"Test failed number of failures=" << _failures);
+        LogFailure(U("Test failed number of failures={INT}"), _failures.load());
     }
     fflush(stdout);
 
@@ -141,7 +137,7 @@ bool ReJITProfiler::FunctionSeen(FunctionID functionId)
                                                NULL);
     if (FAILED(hr))
     {
-        printf("GetReJITIDs failed with hr=0x%x\n", hr);
+        LogFailure(U("GetReJITIDs failed with hr={HR}"), hr);
         _failures++;
         return S_OK;
     }
@@ -155,7 +151,7 @@ bool ReJITProfiler::FunctionSeen(FunctionID functionId)
                                                    &rejitIds[0]);
         if (FAILED(hr))
         {
-            printf("GetReJITIDs failed with hr=0x%x\n", hr);
+            LogFailure(U("GetReJITIDs failed with hr={HR}"), hr);
             _failures++;
             return S_OK;
         }
@@ -170,7 +166,7 @@ bool ReJITProfiler::FunctionSeen(FunctionID functionId)
                                                                NULL);
             if (FAILED(hr))
             {
-                printf("GetNativeCodeStartAddresses failed with hr=0x%x\n", hr);
+                LogFailure(U("GetNativeCodeStartAddresses failed with hr={HR}"), hr);
                 _failures++;
                 continue;
             }
@@ -187,7 +183,7 @@ bool ReJITProfiler::FunctionSeen(FunctionID functionId)
                                                                &codeStartAddresses[0]);
             if (FAILED(hr))
             {
-                printf("GetNativeCodeStartAddresses failed with hr=0x%x\n", hr);
+                LogFailure(U("GetNativeCodeStartAddresses failed with hr={HR}"), hr);
                 _failures++;
                 continue;
             }
@@ -196,7 +192,7 @@ bool ReJITProfiler::FunctionSeen(FunctionID functionId)
             {
                 if (address == NULL)
                 {
-                    printf("Found NULL start address from GetNativeCodeStartAddresses.\n");
+                    LogMessage(U("Found NULL start address from GetNativeCodeStartAddresses."));
                     _failures++;
                 }
             }
@@ -205,7 +201,7 @@ bool ReJITProfiler::FunctionSeen(FunctionID functionId)
 
     if (functionName == TargetMethodName && EndsWith(moduleName, TargetModuleName))
     {
-        INFO(L"Found function id for target method");
+        LogMessage(U("Found function id for target method"));
         _targetFuncId = functionId;
         _targetModuleId = GetModuleIDForFunction(_targetFuncId);
         _targetMethodDef = GetMethodDefForFunction(_targetFuncId);
@@ -214,21 +210,21 @@ bool ReJITProfiler::FunctionSeen(FunctionID functionId)
     }
     else if (functionName == ReJITTriggerMethodName && EndsWith(moduleName, TargetModuleName))
     {
-        INFO(L"ReJIT Trigger method jitting finished: " << functionName);
+        LogMessage(U("ReJIT Trigger method jitting finished: {STR}"), functionName);
 
         _triggerFuncId = functionId;
 
-        INFO(L"Requesting rejit with inliners for method " << GetFunctionIDName(_targetFuncId));
-        INFO(L"ModuleID=" << std::hex << _targetModuleId << L" and MethodDef=" << std::hex << _targetMethodDef);
+        LogMessage(U("Requesting rejit with inliners for method {STR}"), GetFunctionIDName(_targetFuncId));
+        LogMessage(U("ModuleID={HEX} and MethodDef={HEX}"), _targetModuleId, _targetMethodDef);
 
         _profInfo10->RequestReJITWithInliners(COR_PRF_REJIT_BLOCK_INLINING | COR_PRF_REJIT_INLINING_CALLBACKS, 1, &_targetModuleId, &_targetMethodDef);
     }
     else if (functionName == RevertTriggerMethodName && EndsWith(moduleName, TargetModuleName))
     {
-        INFO(L"Revert trigger method jitting finished: " << functionName);
+        LogMessage(U("Revert trigger method jitting finished: {STR}"), functionName);
 
-        INFO(L"Requesting revert for method " << GetFunctionIDName(_targetFuncId));
-        INFO(L"ModuleID=" << std::hex << _targetModuleId << L" and MethodDef=" << std::hex << _targetMethodDef);
+        LogMessage(U("Requesting revert for method {STR}"), GetFunctionIDName(_targetFuncId));
+        LogMessage(U("ModuleID={HEX} and MethodDef={HEX}"), _targetModuleId, _targetMethodDef);
         _profInfo10->RequestRevert(1, &_targetModuleId, &_targetMethodDef, nullptr);
     }
 
@@ -273,14 +269,14 @@ HRESULT STDMETHODCALLTYPE ReJITProfiler::JITCachedFunctionSearchFinished(Functio
         mdToken methodDef;
         if (FAILED(hr = pCorProfilerInfo->GetFunctionInfo(functionId, NULL, NULL, &methodDef)))
         {
-            printf("Call to GetFunctionInfo failed with hr=0x%x\n", hr);
+            LogFailure(U("Call to GetFunctionInfo failed with hr={HR}"), hr);
             return hr;
         }
 
         COMPtrHolder<ICorProfilerMethodEnum> pEnum = NULL;
         if (FAILED(hr = pCorProfilerInfo->EnumNgenModuleMethodsInliningThisMethod(modId, modId, methodDef, NULL, &pEnum)))
         {
-            printf("Call to EnumNgenModuleMethodsInliningThisMethod failed with hr=0x%x\n", hr);
+            LogFailure(U("Call to EnumNgenModuleMethodsInliningThisMethod failed with hr={HR}"), hr);
             return hr;
         }
 
@@ -304,7 +300,7 @@ HRESULT STDMETHODCALLTYPE ReJITProfiler::ReJITCompilationStarted(FunctionID func
 {
     SHUTDOWNGUARD();
 
-    INFO(L"Saw a ReJIT for function " << GetFunctionIDName(functionId));
+    LogMessage(U("Saw a ReJIT for function {STR}"), GetFunctionIDName(functionId));
     _rejits++;
     return S_OK;
 }
@@ -313,13 +309,13 @@ HRESULT STDMETHODCALLTYPE ReJITProfiler::GetReJITParameters(ModuleID moduleId, m
 {
     SHUTDOWNGUARD();
 
-    INFO(L"Starting to build IL for method " << GetFunctionIDName(GetFunctionIDFromToken(moduleId, methodId)));
+    LogMessage(U("Starting to build IL for method {STR}"), GetFunctionIDName(GetFunctionIDFromToken(moduleId, methodId)));
     COMPtrHolder<IUnknown> pUnk;
     HRESULT hr = _profInfo10->GetModuleMetaData(moduleId, ofWrite, IID_IMetaDataEmit2, &pUnk);
     if (FAILED(hr))
     {
         _failures++;
-        FAIL(L"GetModuleMetaData failed for IID_IMetaDataEmit2 in ModuleID '" << std::hex << moduleId);
+        LogFailure(U("GetModuleMetaData failed for IID_IMetaDataEmit2 in ModuleID {HEX}"), moduleId);
         return hr;
     }
 
@@ -328,7 +324,7 @@ HRESULT STDMETHODCALLTYPE ReJITProfiler::GetReJITParameters(ModuleID moduleId, m
     if (FAILED(hr))
     {
         _failures++;
-        FAIL(L"Unable to QI for IMetaDataEmit2");
+        LogFailure(U("Unable to QI for IMetaDataEmit2"));
         return hr;
     }
 
@@ -341,7 +337,7 @@ HRESULT STDMETHODCALLTYPE ReJITProfiler::GetReJITParameters(ModuleID moduleId, m
     if (FAILED(hr))
     {
         _failures++;
-        FAIL(L"DefineUserString failed");
+        LogFailure(U("DefineUserString failed"));
         return S_OK;
     }
 
@@ -350,7 +346,7 @@ HRESULT STDMETHODCALLTYPE ReJITProfiler::GetReJITParameters(ModuleID moduleId, m
     if (FAILED(hr))
     {
         _failures++;
-        FAIL(L"IL import failed");
+        LogFailure(U("IL import failed"));
         return hr;
     }
 
@@ -360,7 +356,7 @@ HRESULT STDMETHODCALLTYPE ReJITProfiler::GetReJITParameters(ModuleID moduleId, m
     {
         if (pInstr->m_opcode == CEE_LDSTR)
         {
-            INFO(L"Replaced function string with new one.");
+            LogMessage(U("Replaced function string with new one."));
             pInstr->m_Arg32 = tokmdsUserDefined;
         }
 
@@ -375,11 +371,11 @@ HRESULT STDMETHODCALLTYPE ReJITProfiler::GetReJITParameters(ModuleID moduleId, m
     if (FAILED(hr))
     {
         _failures++;
-        FAIL(L"IL export failed");
+        LogFailure(U("IL export failed"));
         return hr;
     }
 
-    INFO(L"IL build sucessful for methodDef=" << std::hex << methodId);
+    LogMessage(U("IL build sucessful for methodDef={HEX}"), methodId);
     return S_OK;
 }
 
@@ -391,14 +387,14 @@ HRESULT STDMETHODCALLTYPE ReJITProfiler::ReJITCompilationFinished(FunctionID fun
     HRESULT hr = pCorProfilerInfo->GetReJITIDs(functionId, 0, &rejitIDsCount, NULL);
     if (FAILED(hr))
     {
-        printf("GetReJITIDs failed with hr=0x%x\n", hr);
+        LogFailure(U("GetReJITIDs failed with hr={HR}"), hr);
         _failures++;
         return hr;
     }
 
     if (rejitIDsCount == 0)
     {
-        printf("GetReJITIDs returned 0 for a method with a known ReJIT.\n");
+        LogFailure(U("GetReJITIDs returned 0 for a method with a known ReJIT."));
         _failures++;
         return S_OK;
     }
@@ -412,7 +408,7 @@ HRESULT STDMETHODCALLTYPE ReJITProfiler::ReJITError(ModuleID moduleId, mdMethodD
 
     _failures++;
 
-    FAIL(L"ReJIT error reported hr=" << std::hex << hrStatus);
+    LogFailure(U("ReJIT error reported hr={HR}"), hrStatus);
 
     return S_OK;
 }
@@ -441,7 +437,7 @@ void ReJITProfiler::AddInlining(FunctionID inliner, FunctionID inlinee)
 
     String calleeName = GetFunctionIDName(inlinee);
     String moduleName = GetModuleIDName(GetModuleIDForFunction(inlinee));
-    INFO(L"Inlining occurred! Inliner=" << GetFunctionIDName(inliner) << L" Inlinee=" << calleeName << L" Inlinee module name=" << moduleName);
+    LogMessage(U("Inlining occurred! Inliner={STR} Inlinee={STR} Inlinee Module Name={STR}"), GetFunctionIDName(inliner), calleeName, moduleName);
 }
 
 FunctionID ReJITProfiler::GetFunctionIDFromToken(ModuleID module, mdMethodDef token)
@@ -452,7 +448,7 @@ FunctionID ReJITProfiler::GetFunctionIDFromToken(ModuleID module, mdMethodDef to
                                                            token,
                                                            &functionId)))
     {
-        printf("Call to GetFunctionFromToken failed with hr=0x%x\n", hr);
+        LogFailure(U("Call to GetFunctionFromToken failed with hr={HR}"), hr);
         _failures++;
         return mdTokenNil;
     }
@@ -480,7 +476,7 @@ mdMethodDef ReJITProfiler::GetMethodDefForFunction(FunctionID functionId)
                                             typeArgs);
     if (FAILED(hr))
     {
-        printf("Call to GetFunctionInfo2 failed with hr=0x%x\n", hr);
+        LogFailure(U("Call to GetFunctionInfo2 failed with hr={HR}"), hr);
         _failures++;
         return mdTokenNil;
     }

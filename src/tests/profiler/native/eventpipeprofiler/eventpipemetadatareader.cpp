@@ -5,6 +5,12 @@ using std::wstring;
 using std::vector;
 using std::shared_ptr;
 
+std::wostream& operator<<(std::wostream& os, EventPipeTypeCode& code)
+{
+    os << (int)code;
+    return os;
+}
+
 // TODO: this is kind of ugly and nonintuitive, it's reading a 16 byte, null terminated
 // string. It's a weird overload though.
 template<>

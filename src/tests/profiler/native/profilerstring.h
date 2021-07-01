@@ -79,10 +79,10 @@ private:
 
 public:
     explicit String(const WCHAR* s = U(""));
-    ~String();
+    explicit String(const StringView& other);
     String(const String& other);
     String(String&& other) noexcept;
-    explicit String(const StringView& other);
+    ~String();
 
     String& operator=(const String& other);
     String& operator=(String&& other) noexcept;

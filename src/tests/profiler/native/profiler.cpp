@@ -35,13 +35,13 @@ HRESULT STDMETHODCALLTYPE Profiler::Initialize(IUnknown *pICorProfilerInfoUnk)
 {
     ShutdownGuard::Initialize();
 
-    printf("Profiler.dll!Profiler::Initialize\n");
+    LogMessage(U("Profiler.dll!Profiler::Initialize"));
     fflush(stdout);
 
     HRESULT queryInterfaceResult = pICorProfilerInfoUnk->QueryInterface(__uuidof(ICorProfilerInfo11), reinterpret_cast<void **>(&this->pCorProfilerInfo));
     if (FAILED(queryInterfaceResult))
     {
-        printf("Profiler.dll!Profiler::Initialize failed to QI for ICorProfilerInfo.\n");
+        LogMessage(U("Profiler.dll!Profiler::Initialize failed to QI for ICorProfilerInfo."));
         pICorProfilerInfoUnk = NULL;
     }
     
@@ -50,7 +50,7 @@ HRESULT STDMETHODCALLTYPE Profiler::Initialize(IUnknown *pICorProfilerInfoUnk)
 
 HRESULT STDMETHODCALLTYPE Profiler::Shutdown()
 {
-    printf("Profiler.dll!Profiler::Shutdown\n");
+    LogMessage(U("Profiler.dll!Profiler::Shutdown\n"));
     fflush(stdout);
 
     // Wait for any in progress profiler callbacks to finish.
@@ -605,7 +605,7 @@ String Profiler::GetFunctionIDName(FunctionID funcId)
                                             typeArgs);
     if (FAILED(hr))
     {
-        printf("FAIL: GetFunctionInfo2 call failed with hr=0x%x\n", hr);
+        LogFailure(U("GetFunctionInfo2 call failed with hr={HR}"), hr);
         return String(U("FuncNameLookupFailed"));
     }
 
@@ -616,7 +616,7 @@ String Profiler::GetFunctionIDName(FunctionID funcId)
                                              (IUnknown **)&pIMDImport);
     if (FAILED(hr))
     {
-        printf("FAIL: GetModuleMetaData call failed with hr=0x%x\n", hr);
+        LogFailure(U("GetModuleMetaData call failed with hr={HR}"), hr);
         return String(U("FuncNameLookupFailed"));
     }
 
@@ -633,7 +633,7 @@ String Profiler::GetFunctionIDName(FunctionID funcId)
                                     NULL);
     if (FAILED(hr))
     {
-        printf("FAIL: GetMethodProps call failed with hr=0x%x", hr);
+        LogFailure(U("GetMethodProps call failed with hr={HR}"), hr);
         return String(U("FuncNameLookupFailed"));
     }
 
@@ -668,7 +668,7 @@ String Profiler::GetClassIDName(ClassID classId)
 
     if (classId == NULL)
     {
-        printf("FAIL: Null ClassID passed in\n");
+        LogFailure(U("Null ClassID passed in"));
         return String(U(""));
     }
 
@@ -696,7 +696,7 @@ String Profiler::GetClassIDName(ClassID classId)
     }
     else if (FAILED(hr))
     {
-        printf("FAIL: GetClassIDInfo returned 0x%x for ClassID %x\n", hr, (unsigned int)classId);
+        LogFailure(U("GetClassIDInfo returned {HR} for ClassID {INT}"), hr, (unsigned int)classId);
         return String(U("GetClassIDNameFailed"));
     }
 
@@ -707,7 +707,7 @@ String Profiler::GetClassIDName(ClassID classId)
                                              (IUnknown **)&pMDImport );
     if (FAILED(hr))
     {
-        printf("FAIL: GetModuleMetaData call failed with hr=0x%x\n", hr);
+        LogFailure(U("GetModuleMetaData call failed with hr={HR}"), hr);
         return String(U("ClassIDLookupFailed"));
     }
 
@@ -721,7 +721,7 @@ String Profiler::GetClassIDName(ClassID classId)
                                          NULL);
     if (FAILED(hr))
     {
-        printf("FAIL: GetModuleMetaData call failed with hr=0x%x\n", hr);
+        LogFailure(U("GetModuleMetaData call failed with hr={HR}"), hr);
         return String(U("ClassIDLookupFailed"));
     }
 
@@ -754,7 +754,7 @@ String Profiler::GetModuleIDName(ModuleID modId)
 
     if (modId == NULL)
     {
-        printf("FAIL: Null ModuleID\n");
+        LogFailure(U("Null ModuleID\n"));
         return String(U("NullModuleIDPassedIn"));
     }
 
@@ -766,7 +766,7 @@ String Profiler::GetModuleIDName(ModuleID modId)
                                                  &assemID);
     if (FAILED(hr))
     {
-        printf("FAIL: GetModuleInfo call failed with hr=0x%x\n", hr);
+        LogFailure(U("GetModuleInfo call failed with hr={HR}"), hr);
         return String(U("ModuleIDLookupFailed"));
     }
 

@@ -27,7 +27,7 @@ HRESULT Transitions::Initialize(IUnknown* pICorProfilerInfoUnk)
     if (FAILED(hr = pCorProfilerInfo->SetEventMask2(COR_PRF_MONITOR_CODE_TRANSITIONS | COR_PRF_DISABLE_INLINING, 0)))
     {
         _failures++;
-        printf("FAIL: ICorProfilerInfo::SetEventMask2() failed hr=0x%x", hr);
+        LogFailure(U("ICorProfilerInfo::SetEventMask2() failed hr={HR}"), hr);
         return hr;
     }
 
@@ -41,12 +41,12 @@ HRESULT Transitions::Shutdown()
     if (_failures == 0 && _sawEnter && _sawLeave)
     {
         // If we're here, that means we were Released enough to trigger the destructor
-        printf("PROFILER TEST PASSES\n");
+        LogMessage(U("PROFILER TEST PASSES"));
     }
     else
     {
-        auto boolFmt = [](bool b) { return b ? "true" : "false"; };
-        printf("Test failed _failures=%d _sawEnter=%s _sawLeave=%s\n", 
+        auto boolFmt = [](bool b) { return b ? U("true") : U("false"); };
+        LogMessage(U("Test failed _failures={INT} _sawEnter={STR} _sawLeave={STR}"), 
                 _failures.load(), boolFmt(_sawEnter), boolFmt(_sawLeave));
     }
 
