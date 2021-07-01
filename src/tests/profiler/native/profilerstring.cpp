@@ -342,11 +342,13 @@ String& String::operator+=(const StringView& other)
 
 WCHAR& String::operator[] (size_t pos)
 {
+    assert(pos < _bufferLen);
     return _buffer[pos];
 }
 
 const WCHAR& String::operator[] (size_t pos) const
 {
+    assert(pos < _bufferLen);
     return _buffer[pos];
 }
 
