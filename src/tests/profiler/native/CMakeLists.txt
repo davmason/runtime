@@ -3,26 +3,26 @@ cmake_minimum_required(VERSION 3.14.5)
 project(Profiler)
 
 set(SOURCES
-    eltprofiler/slowpatheltprofiler.cpp
-    eventpipeprofiler/eventpipereadingprofiler.cpp
-    eventpipeprofiler/eventpipewritingprofiler.cpp
-    eventpipeprofiler/eventpipemetadatareader.cpp
-    gcbasicprofiler/gcbasicprofiler.cpp
-    gcprofiler/gcprofiler.cpp
-    getappdomainstaticaddress/getappdomainstaticaddress.cpp
-    metadatagetdispenser/metadatagetdispenser.cpp
-    nullprofiler/nullprofiler.cpp
-    rejitprofiler/rejitprofiler.cpp
-    rejitprofiler/ilrewriter.cpp
-    rejitprofiler/sigparse.cpp
-    releaseondetach/releaseondetach.cpp
-    transitions/transitions.cpp
+    ${SOURCES}
     profiler.def
     profiler.cpp
     profilerstring.cpp
     classfactory.cpp
     dllmain.cpp
-    guids.cpp)
+    guids.cpp
+    CACHE INTERNAL "")
+
+add_subdirectory(eltprofiler)
+add_subdirectory(eventpipeprofiler)
+add_subdirectory(gcbasicprofiler)
+add_subdirectory(gcprofiler)
+add_subdirectory(getappdomainstaticaddress)
+add_subdirectory(metadatagetdispenser)
+add_subdirectory(nullprofiler)
+add_subdirectory(rejitprofiler)
+add_subdirectory(releaseondetach)
+add_subdirectory(transitions)
+add_subdirectory(legacy)
 
 include_directories(../../../coreclr/pal/prebuilt/inc)
 
@@ -42,6 +42,7 @@ if(NOT WIN32)
     endif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif(NOT WIN32)
 
+message(${SOURCES})
 # add the executable
 add_library(Profiler SHARED ${SOURCES})
 
