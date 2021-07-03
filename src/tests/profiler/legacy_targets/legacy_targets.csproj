@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <CLRTestKind>BuildOnly</CLRTestKind>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <CLRTestPriority>0</CLRTestPriority>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="divzero.cs" />
+    <Compile Include="tieredcompile.cs" />
+    <Compile Include="floatingpointregisters.cs" />
+    <Compile Include="mytest.cs" />
+    <Compile Include="finalizer.cs" />
+    <Compile Include="car.cs" />
+    <Compile Include="factorial.cs" />
+    <Compile Include="array_params.cs" />
+    <Compile Include="SharedCode.cs" />
+    <Compile Include="genclasses.cs" />
+    <Compile Include="GenericFactorial.cs" />
+    <Compile Include="fibonacci.cs" />
+    <Compile Include="hello.cs" />
+    <Compile Include="profiler_contracts.cs" />
+    <Compile Include="collectible.cs" />
+    <Compile Include="jmc1.cs" />
+    <Compile Include="tailcall.cs" />
+    <Compile Include="statics.cs" />
+    <Compile Include="dynamicmodules.cs" />
+    <Compile Include="dynil.cs" />
+    <Compile Include="statics_argretval.cs" />
+    <Compile Include="frozenstrings.cs" />
+    <Compile Include="sharedstatic.cs" />
+    <Compile Include="mdinjecttarget.cs" />
+    <Compile Include="gc.cs" />
+    <Compile Include="2gbtest.cs" />
+    <Compile Include="largeobjectalloc.cs" />
+    <Compile Include="collect.cs" />
+    <Compile Include="exception.cs" />
+    <Compile Include="hiroshima.cs" />
+    <Compile Include="thread_name.cs" />
+    <Compile Include="attachprofilerunit.cs" />
+    <Compile Include="BaseNode.cs" />
+    <Compile Include="RandomNode.cs" />
+    <Compile Include="helper.cs" />
+  </ItemGroup>
+</Project>
+
