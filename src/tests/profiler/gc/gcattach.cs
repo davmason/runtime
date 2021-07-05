@@ -15,7 +15,7 @@ namespace Profiler.Tests
             if (args.Length > 0 && args[0].Equals("RunTest", StringComparison.OrdinalIgnoreCase))
             {
                 string[] newArgs = args.Length > 1 ? Enumerable.TakeLast(args, args.Length - 1).ToArray() : new string[] { };
-                return LegacyTestTargets.2gbtest(newArgs);
+                return LegacyTestTargets._2gbtest(newArgs);
             }
 
             return ProfilerTestRunner.Run(profileePath: System.Reflection.Assembly.GetExecutingAssembly().Location,
