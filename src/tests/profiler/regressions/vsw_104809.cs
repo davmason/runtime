@@ -9,7 +9,7 @@ namespace Profiler.Tests
 {
     class vsw_104809
     {
-        static readonly Guid VSW_104809Guid = new Guid("TODO: add guid");
+        static readonly Guid LegacyProfilerGuid = new Guid("465F1659-E372-4A7F-825E-153B227BA671");
         public static int Main(string[] args)
         {
             if (args.Length > 0 && args[0].Equals("RunTest", StringComparison.OrdinalIgnoreCase))
@@ -20,7 +20,8 @@ namespace Profiler.Tests
 
             return ProfilerTestRunner.Run(profileePath: System.Reflection.Assembly.GetExecutingAssembly().Location,
                                           testName: "VSW_104809",
-                                          profilerClsid: VSW_104809Guid);
+                                          profilerClsid: LegacyProfilerGuid,
+                                          satelliteModule: "regressions");
         }
     }
 }

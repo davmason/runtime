@@ -9,18 +9,19 @@ namespace Profiler.Tests
 {
     class gcattach
     {
-        static readonly Guid GCAttachGuid = new Guid("TODO: add guid");
+        static readonly Guid LegacyProfilerGuid = new Guid("465F1659-E372-4A7F-825E-153B227BA671");
         public static int Main(string[] args)
         {
             if (args.Length > 0 && args[0].Equals("RunTest", StringComparison.OrdinalIgnoreCase))
             {
                 string[] newArgs = args.Length > 1 ? Enumerable.TakeLast(args, args.Length - 1).ToArray() : new string[] { };
-                return LegacyTestTargets._2gbtest(newArgs);
+                return LegacyTestTargets.2gbtest(newArgs);
             }
 
             return ProfilerTestRunner.Run(profileePath: System.Reflection.Assembly.GetExecutingAssembly().Location,
                                           testName: "GCAttach",
-                                          profilerClsid: GCAttachGuid);
+                                          profilerClsid: LegacyProfilerGuid,
+                                          satelliteModule: "gc");
         }
     }
 }

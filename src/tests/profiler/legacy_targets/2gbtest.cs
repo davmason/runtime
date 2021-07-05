@@ -10,7 +10,7 @@ namespace LegacyTestTargetsImpl._2gbtest
     struct OneByte
     {
         byte x;
-    }
+    };
 
     struct Byte13
     {
@@ -27,7 +27,7 @@ namespace LegacyTestTargetsImpl._2gbtest
         public byte b11;
         public byte b12;
         public byte b13;
-    }
+    };
 
     class My
     {

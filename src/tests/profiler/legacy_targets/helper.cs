@@ -165,7 +165,7 @@ namespace Profiler.Tests
 
         public static int collect(string[] args)
         {
-            LegacyTestTargetsImpl.collect.Collect.collect();
+            LegacyTestTargetsImpl.collect.collect.runCollect();
             return 100;
         }
 

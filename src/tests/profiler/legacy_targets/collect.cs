@@ -29,7 +29,7 @@ namespace LegacyTestTargetsImpl.collect
     }
 
 
-    class Collect
+    class collect
     {
         [MethodImplAttribute(MethodImplOptions.NoInlining)]
         static void PassByRef(ref byte b)
@@ -50,7 +50,7 @@ namespace LegacyTestTargetsImpl.collect
         static int s1;
         static object s2, s3, s4, s5, s6;
 
-        public static void collect()
+        public static void runCollect()
         {
             GC.Collect();
 

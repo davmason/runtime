@@ -19,7 +19,7 @@ namespace LegacyTestTargetsImpl.mytest
             three = 3;
             four = 4;
         }
-    }
+    };
 
     class My
     {

@@ -38,8 +38,8 @@
     <Compile Include="hiroshima.cs" />
     <Compile Include="thread_name.cs" />
     <Compile Include="attachprofilerunit.cs" />
-    <Compile Include="BaseNode.cs" />
     <Compile Include="RandomNode.cs" />
+    <Compile Include="BaseNode.cs" />
     <Compile Include="helper.cs" />
   </ItemGroup>
 </Project>

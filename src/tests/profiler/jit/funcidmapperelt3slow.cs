@@ -9,7 +9,7 @@ namespace Profiler.Tests
 {
     class funcidmapperelt3slow
     {
-        static readonly Guid FuncIDMapperELT3SlowGuid = new Guid("TODO: add guid");
+        static readonly Guid LegacyProfilerGuid = new Guid("465F1659-E372-4A7F-825E-153B227BA671");
         public static int Main(string[] args)
         {
             if (args.Length > 0 && args[0].Equals("RunTest", StringComparison.OrdinalIgnoreCase))
@@ -20,7 +20,8 @@ namespace Profiler.Tests
 
             return ProfilerTestRunner.Run(profileePath: System.Reflection.Assembly.GetExecutingAssembly().Location,
                                           testName: "FuncIDMapperELT3Slow",
-                                          profilerClsid: FuncIDMapperELT3SlowGuid);
+                                          profilerClsid: LegacyProfilerGuid,
+                                          satelliteModule: "jit");
         }
     }
 }

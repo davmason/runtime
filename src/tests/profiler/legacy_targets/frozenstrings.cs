@@ -5,7 +5,7 @@ namespace LegacyTestTargetsImpl.frozenstrings
 {
     using System.Runtime.CompilerServices;
 
-    class FrozenStrings
+class FrozenStrings
     {
 
         static string m_s1 = "Hello World";
