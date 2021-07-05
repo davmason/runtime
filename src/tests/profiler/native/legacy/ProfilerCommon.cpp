@@ -41,9 +41,6 @@
                                 Error(temp) ;                                           \
                             }
 
-std::atomic<bool> ShutdownGuard::s_preventHooks;
-std::atomic<int> ShutdownGuard::s_hooksInProgress;
-
 #ifdef OSX
 #define malloc_usable_size malloc_size
 #include <malloc/malloc.h>

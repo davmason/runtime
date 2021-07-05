@@ -66,7 +66,7 @@
 #include "../../ProfilerCommon.h"
 #include "Helpers.h"
 #include "corhlpr.h"
-#include "../../ILRewriter.h"
+#include "../../../ILRewriter.h"
 #include "InjectMetaData.h"
 #include "InjectNewUserDefinedString.h"
 #include "SigParser.h"

@@ -2,7 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 #include "rejitprofiler.h"
-#include "ilrewriter.h"
+#include "../ilrewriter.h"
 #include <iostream>
 #include <utility>
 #include <vector>

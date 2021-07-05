@@ -7,9 +7,9 @@
 include AsmMacros.inc
 ;include asmconstants.inc
 
-extern  EnterStub:proc
-extern  LeaveStub:proc
-extern  TailcallStub:proc
+extern  LegacyEnterStub:proc
+extern  LegacyLeaveStub:proc
+extern  LegacyTailcallStub:proc
 
 SIZEOF_OUTGOING_ARGUMENT_HOMES  equ 8h*4
 SIZEOF_FP_ARG_SPILL             equ 10h*4
@@ -66,7 +66,7 @@ NESTED_ENTRY EnterNaked, _TEXT
         save_arg_registers
     END_PROLOGUE
 
-        call    EnterStub
+        call    LegacyEnterStub
 
         restore_arg_registers
         
@@ -84,7 +84,7 @@ NESTED_ENTRY LeaveNaked, _TEXT
         save_arg_registers
     END_PROLOGUE
 
-        call    LeaveStub
+        call    LegacyLeaveStub
 
         restore_arg_registers
 
@@ -102,7 +102,7 @@ NESTED_ENTRY TailcallNaked, _TEXT
         save_arg_registers
     END_PROLOGUE
 
-        call    TailcallStub
+        call    LegacyTailcallStub
 
         restore_arg_registers
 

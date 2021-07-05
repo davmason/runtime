@@ -128,9 +128,7 @@ set(SOURCES
     ${SOURCES}
     ${CMAKE_CURRENT_SOURCE_DIR}/TestProfiler.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/TestProfiler.def
-    ${CMAKE_CURRENT_SOURCE_DIR}/ilrewriter.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/ProfilerCommon.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/LegacyCompat.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/SigParse.cpp
     PARENT_SCOPE)
 

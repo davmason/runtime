@@ -10,6 +10,8 @@ set(SOURCES
     classfactory.cpp
     dllmain.cpp
     guids.cpp
+    ilrewriter.cpp
+    sigparse.cpp
     CACHE INTERNAL "")
 
 add_subdirectory(eltprofiler)

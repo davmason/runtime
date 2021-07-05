@@ -54,17 +54,17 @@ EXTERN_C UINT_PTR STDMETHODCALLTYPE FunctionIDMapper2Stub(FunctionID functionId,
     return TestProfiler::Instance()->FunctionIDMapper2(functionId, clientData, pbHookFunction);
 }
 
-EXTERN_C VOID STDMETHODCALLTYPE EnterStub(FunctionID funcId)
+EXTERN_C VOID STDMETHODCALLTYPE LegacyEnterStub(FunctionID funcId)
 {
     TestProfiler::Instance()->FunctionEnterCallBack(funcId);
 }
 
-EXTERN_C VOID STDMETHODCALLTYPE LeaveStub(FunctionID funcId)
+EXTERN_C VOID STDMETHODCALLTYPE LegacyLeaveStub(FunctionID funcId)
 {
     TestProfiler::Instance()->FunctionLeaveCallBack(funcId);
 }
 
-EXTERN_C VOID STDMETHODCALLTYPE TailcallStub(FunctionID funcId)
+EXTERN_C VOID STDMETHODCALLTYPE LegacyTailcallStub(FunctionID funcId)
 {
     TestProfiler::Instance()->FunctionTailcallCallBack(funcId);
 }
@@ -588,9 +588,9 @@ HRESULT TestProfiler::SetELTHooks()
         m_methodTable.FUNCTIONLEAVE != NULL ||
         m_methodTable.FUNCTIONTAILCALL != NULL)
     {
-        MUST_PASS(PINFO->SetEnterLeaveFunctionHooks(m_methodTable.FUNCTIONENTER == NULL ? NULL : &EnterStub,
-                                                    m_methodTable.FUNCTIONLEAVE == NULL ? NULL : &LeaveStub,
-                                                    m_methodTable.FUNCTIONTAILCALL == NULL ? NULL : &TailcallStub));
+        MUST_PASS(PINFO->SetEnterLeaveFunctionHooks(m_methodTable.FUNCTIONENTER == NULL ? NULL : &LegacyEnterStub,
+                                                    m_methodTable.FUNCTIONLEAVE == NULL ? NULL : &LegacyLeaveStub,
+                                                    m_methodTable.FUNCTIONTAILCALL == NULL ? NULL : &LegacyTailcallStub));
     }
 
     if (m_methodTable.FUNCTIONENTER2 != NULL ||
@@ -1037,10 +1037,10 @@ BOOL TestProfiler::LoadSatelliteModule(wstring target, wstring strTestName)
         Tiered_Compilation_Satellite_Initialize(PPRFCOM, &m_methodTable, strTestName);
     }
 #ifdef WINDOWS
-    else if (target == L"attachdetach")
-    {
-        AttachDetach_Satellite_Initialize(PPRFCOM, &m_methodTable, strTestName);
-    }
+    // else if (target == L"attachdetach")
+    // {
+    //     AttachDetach_Satellite_Initialize(PPRFCOM, &m_methodTable, strTestName);
+    // }
 #endif // WINDOWS
     else
     {
