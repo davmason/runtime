@@ -1,0 +1,7 @@
+LIBRARY TestProfiler
+EXPORTS
+    DllGetClassObject             private
+	NtvEnteredFunction
+	NtvExitedFunction
+	InstrumentationMethodEnter
+	NativeFunction

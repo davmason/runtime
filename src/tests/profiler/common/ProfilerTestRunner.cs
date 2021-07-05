@@ -27,7 +27,8 @@ namespace Profiler.Tests
                               string profileeArguments = "",
                               ProfileeOptions profileeOptions = ProfileeOptions.None,
                               Dictionary<string, string> envVars = null,
-                              string reverseServerName = null)
+                              string reverseServerName = null,
+                              string satelliteModule = null)
         {
             string arguments;
             string program;
@@ -68,6 +69,13 @@ namespace Profiler.Tests
             }
 
             envVars.Add("Profiler_Test_Name", testName);
+
+            if (satelliteModule != null)
+            {
+                // Legacy test mode, set the legacy environment variables
+                envVars.Add("bpd_satellitemodule", satelliteModule);
+                envVars.Add("bpd_testname", testName);
+            }
 
             if(!File.Exists(profilerPath))
             {

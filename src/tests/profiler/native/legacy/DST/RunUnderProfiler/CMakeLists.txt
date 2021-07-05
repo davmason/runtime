@@ -1,0 +1,3 @@
+add_subdirectory(AllCallbacks)
+add_subdirectory(JITHooks)
+add_subdirectory(NoCallbacks)

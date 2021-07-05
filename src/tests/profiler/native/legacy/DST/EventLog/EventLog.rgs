@@ -1,0 +1,18 @@
+HKCR
+{
+    EventLog = s 'EventLog Profiler Test'
+    {
+        CLSID = s '{A905758C-2277-4467-BE84-FDA09BC638DA}'
+    }
+    NoRemove CLSID
+    {
+        ForceRemove {A905758C-2277-4467-BE84-FDA09BC638DA} = s 'EventLog Profiler Test'
+        {
+            ProgID = s 'EventLog'
+            InprocServer32 = s '%MODULE%'
+            {
+                val ThreadingModel = s 'Both'
+            }
+        }
+    }
+}

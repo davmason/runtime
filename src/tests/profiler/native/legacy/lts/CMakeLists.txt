@@ -1,5 +1,7 @@
 
-set(SOURCES 
+include_directories(../)
+
+set(SOURCES
     ${SOURCES}
     ${CMAKE_CURRENT_SOURCE_DIR}/CallSequence.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/DynamicModules.cpp

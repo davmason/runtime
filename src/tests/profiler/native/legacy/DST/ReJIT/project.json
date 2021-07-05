@@ -1,0 +1,23 @@
+{
+  "dependencies": {
+    "Microsoft.NETCore.App": {
+      
+      "version": "1.0.0"
+    },
+    "Microsoft.DiaSymReader.PortablePdb": "1.1.0",
+    "Microsoft.Win32.Registry": "4.0.0",
+    "System.Runtime.InteropServices.WindowsRuntime": "4.0.1"
+  },
+  "frameworks": {
+    "netcoreapp1.0": {
+      "imports": "netcore50"
+    }
+  },
+  "runtimes": {
+    "win7-x64": { },
+    "win7-x86": { },
+    "ubuntu.14.04-x64": { },
+    "osx.10.10-x64": { }
+  }
+}
+

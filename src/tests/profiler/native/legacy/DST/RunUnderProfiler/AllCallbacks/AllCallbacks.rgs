@@ -1,0 +1,18 @@
+HKCR
+{
+    EventLog = s 'RunUnderProfiler AllCallbacks Profiler Test'
+    {
+        CLSID = s '{19DE3EDD-F1E9-41f1-A0CF-C16EB7F146B5}'
+    }
+    NoRemove CLSID
+    {
+        ForceRemove {19DE3EDD-F1E9-41f1-A0CF-C16EB7F146B5} = s 'RunUnderProfiler AllCallbacks Profiler Test'
+        {
+            ProgID = s 'AllCallbacks'
+            InprocServer32 = s '%MODULE%'
+            {
+                val ThreadingModel = s 'Both'
+            }
+        }
+    }
+}

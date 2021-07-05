@@ -1,0 +1,42 @@
+!include $(NTMAKEENV)\sources.man
+#
+
+!include ..\..\..\sources.cmn
+			 
+
+#
+
+TARGETNAME1100       =   DetachPerfTester
+TARGETPATH1100       =   $(PROF_BIN)\Modules\DST
+TARGETTYPE1100       =   DYNLINK_WITHENTRY
+TARGETCOMPILER1100   =   CP_NCPP
+SKU1100              =   CoreCLR
+SOURCES1100          =   ThreadMgr.cpp TestHelper.cpp COMGoo.cpp DetachPerfTester.cpp 
+INCLUDES1100         =   $(PROF_INCLUDES_CORECLR) 
+COMPILEFLAGS1100     =   $(PROF_CL_FLAGS_CORECLR)  
+LINKFLAGS1100        =   $(PROF_LINK_FLAGS) /DEF:DetachPerfTester.def  
+TARGETLIBS1100       =   $(SDK_LIB_PATH)\corguids.lib 
+
+TARGETNAME1101       =   DetachPerfTester
+TARGETPATH1101       =   $(PROF_BIN)\Modules\DST
+TARGETTYPE1101       =   DYNLINK_WITHENTRY
+TARGETCOMPILER1101   =   CP_NCPP
+SKU1101              =   WinCoreSys
+SOURCES1101          =   ThreadMgr.cpp TestHelper.cpp COMGoo.cpp DetachPerfTester.cpp 
+INCLUDES1101         =   $(PROF_INCLUDES_CORESYS) 
+COMPILEFLAGS1101     =   $(PROF_CL_FLAGS_CORESYS)  
+LINKFLAGS1101        =   $(PROF_LINK_FLAGS_CORESYS) /DEF:DetachPerfTester.def  
+TARGETLIBS1100       =   $(SDK_LIB_PATH)\corguids.lib 
+
+#
+
+TARGETNAME2100       =   DetachPerfTester
+TARGETPATH2100       =   $(PROF_BIN)\Modules\DST
+TARGETTYPE2100       =   DYNLINK_WITHENTRY
+TARGETCOMPILER2100   =   CP_NCPP
+SKU2100              =   Desktop
+SOURCES2100          =   ThreadMgr.cpp TestHelper.cpp COMGoo.cpp DetachPerfTester.cpp 
+INCLUDES2100         =   $(PROF_INCLUDES_DESKTOP) 
+COMPILEFLAGS2100     =   $(PROF_CL_FLAGS_DESKTOP) 
+LINKFLAGS2100        =   $(PROF_LINK_FLAGS) /DEF:DetachPerfTester.def 
+TARGETLIBS2100       =   $(SDK_LIB_PATH)\corguids.lib 

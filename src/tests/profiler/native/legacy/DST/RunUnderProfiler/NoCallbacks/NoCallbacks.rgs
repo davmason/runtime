@@ -1,0 +1,18 @@
+HKCR
+{
+    NoCallbacks = s 'NoCallbacks Profiler Test'
+    {
+        CLSID = s '{3165CCF7-6528-4d77-890B-E2D8FF0BE330}'
+    }
+    NoRemove CLSID
+    {
+        ForceRemove {3165CCF7-6528-4d77-890B-E2D8FF0BE330} = s 'NoCallbacks Profiler Test'
+        {
+            ProgID = s 'NoCallbacks'
+            InprocServer32 = s '%MODULE%'
+            {
+                val ThreadingModel = s 'Both'
+            }
+        }
+    }
+}

@@ -1,0 +1,18 @@
+HKCR
+{
+    JITHooks = s 'JITHooks Profiler Test'
+    {
+        CLSID = s '{229C6917-28E3-48aa-BEEA-343A681688AF}'
+    }
+    NoRemove CLSID
+    {
+        ForceRemove {229C6917-28E3-48aa-BEEA-343A681688AF} = s 'JITHooks Profiler Test'
+        {
+            ProgID = s 'JITHooks'
+            InprocServer32 = s '%MODULE%'
+            {
+                val ThreadingModel = s 'Both'
+            }
+        }
+    }
+}

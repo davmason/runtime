@@ -1,0 +1,26 @@
+HKCR
+{
+    TestProfiler.1 = s 'Base Profiler Driver test framework'
+    {
+        CLSID = s '{55AF0BED-DA1B-419d-8965-999F41DA4E1A}'
+    }
+    TestProfiler = s 'Base Profiler Driver test framework'
+    {
+        CLSID = s '{55AF0BED-DA1B-419d-8965-999F41DA4E1A}'
+        CurVer = s 'TestProfiler.1'
+    }
+    NoRemove CLSID
+    {
+        ForceRemove {55AF0BED-DA1B-419d-8965-999F41DA4E1A} = s 'Base Profiler Driver test framework'
+        {
+            ProgID = s 'TestProfiler.1'
+            VersionIndependentProgID = s 'TestProfiler'
+            ForceRemove 'Programmable'
+            InprocServer32 = s '%MODULE%'
+            {
+                val ThreadingModel = s 'Both'
+            }
+            val AppID = s '%APPID%'
+        }
+    }
+}

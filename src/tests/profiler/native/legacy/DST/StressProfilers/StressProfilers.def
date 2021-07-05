@@ -1,0 +1,4 @@
+LIBRARY StressProfilers
+
+EXPORTS 
+	Satellite_Initialize
