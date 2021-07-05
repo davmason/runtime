@@ -1,6 +1,8 @@
 #include "../../ProfilerCommon.h"
 #include "../../LegacyCompat.h" // Whidbey Framework Support
 
+#include "../../../holder.h"
+
 INT VSW261257_fail;
 
 HRESULT VSW261257_ModuleLoadFinished(IPrfCom * pPrfCom,

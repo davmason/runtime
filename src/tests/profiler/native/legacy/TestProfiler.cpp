@@ -565,6 +565,13 @@ HRESULT TestProfiler::CommonInit(IUnknown *pProfilerInfoUnk)
     return S_OK;
 }
 
+GUID TestProfiler::GetClsid()
+{
+    // {465F1659-E372-4A7F-825E-153B227BA671}
+    GUID clsid = { 0x465F1659, 0xE372, 0x4A7F,{ 0x82, 0x5E, 0x15, 0x3B, 0x22, 0x7B, 0xA6, 0x71 } };
+    return clsid;
+}
+
 HRESULT TestProfiler::SetELTHooks()
 {
     HRESULT hr = S_OK;

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "../../../holder.h"
+
 #define dimensionof(a) 		(sizeof(a)/sizeof(*(a)))
 
 struct ProfConfig;

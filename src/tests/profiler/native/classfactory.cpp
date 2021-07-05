@@ -13,6 +13,7 @@
 #include "rejitprofiler/rejitprofiler.h"
 #include "releaseondetach/releaseondetach.h"
 #include "transitions/transitions.h"
+#include "legacy/TestProfiler.h"
 
 ClassFactory::ClassFactory(REFCLSID clsid) : refCount(0), clsid(clsid)
 {
@@ -71,7 +72,8 @@ HRESULT STDMETHODCALLTYPE ClassFactory::CreateInstance(IUnknown *pUnkOuter, REFI
         new GCProfiler(),
         new ReleaseOnDetach(),
         new Transitions(),
-        new NullProfiler()
+        new NullProfiler(),
+        new TestProfiler()
 		// add new profilers here
 	};
 

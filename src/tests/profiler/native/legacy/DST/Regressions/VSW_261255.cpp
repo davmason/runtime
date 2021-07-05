@@ -1,6 +1,8 @@
 #include "../../ProfilerCommon.h"
 #include "../../LegacyCompat.h" // Whidbey Framework Support
 
+#include "../../../holder.h"
+
 INT VSW261255_fail;
 
 HRESULT STDMETHODCALLTYPE VSW261255_SnapShotCallback( FunctionID funcId,

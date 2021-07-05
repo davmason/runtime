@@ -79,6 +79,8 @@ using std::ios;
 //Profiler Helper
 #include "ProfilerCommonHelper.h"
 
+#include "../holder.h"
+#include "../event.h"
 
 // Standard array and string lengths
 #define SHORT_LENGTH    32
@@ -317,147 +319,6 @@ inline void wcscat_s(wchar_t * dest, size_t destsz,
 #endif // __clang__ 
 
 BOOL ContainsAtEnd(const PLATFORM_WCHAR *wszContainer, const PLATFORM_WCHAR *wszProspectiveEnding);
-
-class AutoEvent
-{
-private:
-    std::mutex m_mtx;
-    std::condition_variable m_cv;
-    bool m_set = false;
-
-    static VOID DoNothing()
-    {
-
-    }
-
-public:
-    AutoEvent() = default;
-    ~AutoEvent() = default;
-    AutoEvent(AutoEvent& other) = delete;
-    AutoEvent(AutoEvent &&other) = delete;
-    AutoEvent &operator=(AutoEvent &other) = delete;
-    AutoEvent &operator=(AutoEvent &&other) = delete;
-
-    void Wait(std::function<void()> spuriousCallback = DoNothing)
-    {
-        std::unique_lock<std::mutex> lock(m_mtx);
-        while (!m_set)
-        {
-            m_cv.wait(lock, [&]() { return m_set; });
-            if (!m_set)
-            {
-                spuriousCallback();
-            }
-        }
-        m_set = false;
-    }
-
-    void WaitFor(int milliseconds, std::function<void()> spuriousCallback = DoNothing)
-    {
-        std::unique_lock<std::mutex> lock(m_mtx);
-        while (!m_set)
-        {
-            m_cv.wait_for(lock, std::chrono::milliseconds(milliseconds), [&]() { return m_set; });
-            if (!m_set)
-            {
-                spuriousCallback();
-            }
-        }
-        m_set = false;
-    }
-
-    void Signal()
-    {
-        std::unique_lock<std::mutex> lock(m_mtx);
-        m_set = true;
-        m_cv.notify_one();
-    }
-};
-
-class ManualEvent
-{
-private:
-    std::mutex m_mtx;
-    std::condition_variable m_cv;
-    bool m_set = false;
-
-    static VOID DoNothing()
-    {
-
-    }
-
-public:
-    ManualEvent() = default;
-    ~ManualEvent() = default;
-    ManualEvent(ManualEvent& other) = delete;
-    ManualEvent(ManualEvent&& other) = delete;
-    ManualEvent& operator= (ManualEvent& other) = delete;
-    ManualEvent& operator= (ManualEvent&& other) = delete;
-
-    void Wait(std::function<void()> spuriousCallback = DoNothing)
-    {
-        std::unique_lock<std::mutex> lock(m_mtx);
-        while (!m_set)
-        {
-            m_cv.wait(lock, [&]() { return m_set; });
-            if (!m_set)
-            {
-                spuriousCallback();
-            }
-        }
-    }
-
-    void Signal()
-    {
-        std::unique_lock<std::mutex> lock(m_mtx);
-        m_set = true;
-    }
-
-    void Reset()
-    {
-        std::unique_lock<std::mutex> lock(m_mtx);
-        m_set = false;
-    }
-};
-
-class ShutdownGuard
-{
-private:
-    static std::atomic<bool> s_preventHooks;
-    static std::atomic<int> s_hooksInProgress;
-
-public:
-    ShutdownGuard()
-    {
-        ++s_hooksInProgress;
-    }
-
-    ~ShutdownGuard()
-    {
-        --s_hooksInProgress;
-    }
-
-    static void Initialize()
-    {
-        s_preventHooks = false;
-        s_hooksInProgress = 0;
-    }
-
-    static bool HasShutdownStarted()
-    {
-        return s_preventHooks.load();
-    }
-
-    static void WaitForInProgressHooks()
-    {
-        s_preventHooks = true;
-
-        while (s_hooksInProgress.load() > 0)
-        {
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        }
-    }
-};
 
 template<typename T>
 bool IsWithinFudgeFactor(T value, T comparand, double lowerFudgeFactor, double upperFudgeFactor = 1.0)

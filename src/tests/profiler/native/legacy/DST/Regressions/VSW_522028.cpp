@@ -1,6 +1,8 @@
 #include "../../ProfilerCommon.h"
 #include "../../LegacyCompat.h" // Whidbey Framework Support
 
+#include "../../../holder.h"
+
 #include <condition_variable>
 #include <chrono>
 #include <thread>

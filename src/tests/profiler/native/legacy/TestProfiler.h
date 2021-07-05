@@ -59,12 +59,16 @@ extern const GUID __declspec( selectany ) CLSID_PROFILER = // {55AF0BED-DA1B-419
  ********************                                               ********************
  ***************************************************************************************/
 
-class TestProfiler : public ICorProfilerCallback4
+#include "../profiler.h"
+
+class TestProfiler : public Profiler
 {
 public:
     TestProfiler();
     virtual ~TestProfiler();
 
+    virtual GUID GetClsid();
+    
     virtual HRESULT STDMETHODCALLTYPE Initialize(IUnknown *pProfilerInfoUnk);
 
     virtual HRESULT STDMETHODCALLTYPE InitializeForAttach(IUnknown * pCorProfilerInfoUnk,

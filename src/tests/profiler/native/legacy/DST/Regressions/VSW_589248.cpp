@@ -12,6 +12,8 @@
 
 #include "../../ProfilerCommon.h"
 
+#include "../../../holder.h"
+
 HRESULT VSW_589248_Verify(IPrfCom * /*pPrfCom*/)
 {
     return S_OK;
