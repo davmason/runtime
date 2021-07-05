@@ -3,7 +3,7 @@
 //   Copyright (c) Microsoft Corporation.  All rights reserved.
 // 
 // ==--==
-#include "ProfilerCommon.h"
+#include "../../ProfilerCommon.h"
 #include "simplerwlock.hpp"
 
 BOOL SimpleRWLock::TryEnterRead()

@@ -12,7 +12,7 @@
 // which would be one of thread static, context static, appdomaon static or RVA static
 // ======================================================================================
 #include "GCCommon.h"
-#include "LegacyCompat.h"
+#include "../LegacyCompat.h"
 
 typedef vector<ThreadID> ThreadPool;
 typedef vector<AppDomainID> AppDoaminPool;

@@ -1,4 +1,4 @@
-#include "ProfilerCommon.h"
+#include "../../ProfilerCommon.h"
 extern PMODULEMETHODTABLE pCallTable; 
 extern IPrfCom * g_satellite_pPrfCom;
 

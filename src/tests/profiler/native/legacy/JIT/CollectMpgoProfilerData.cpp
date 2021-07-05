@@ -1,7 +1,7 @@
 #include "JITCommon.h"
 #include <assert.h>
 // Legacy support
-#include "LegacyCompat.h"
+#include "../LegacyCompat.h"
 // Legacy support
 
 #ifdef __clang__
@@ -56,9 +56,9 @@ struct MpgoProfileData
 
 #define XML_FORMAT_STRING_HEADER "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
 #define XML_FORMAT_STRING_ROOT_START "<MpgoProfilerData version=\"1.0\">\n"
-#define XML_FORMAT_STRING_METHOD_START "<Method methodID=\"0x%x\" classID=\"0x%x\" moduleID=\"0x%x\" methodName=\"%s::%s\" moduleName=\"%s\" order=\"%d\" moduleBaseAddress=\"0x%p\" >\n"
+#define XML_FORMAT_STRING_METHOD_START "<Method methodID=\"0x%llx\" classID=\"0x%llx\" moduleID=\"0x%llx\" methodName=\"%s::%s\" moduleName=\"%s\" order=\"%d\" moduleBaseAddress=\"0x%p\" >\n"
 #define XML_FORMAT_STRING_BLOCKINFO_START "<CodeRegions>\n"
-#define XML_FORMAT_STRING_BLOCKINFO "<CodeRegion startAddress=\"0x%x\" size=\"0x%x\" />\n"
+#define XML_FORMAT_STRING_BLOCKINFO "<CodeRegion startAddress=\"0x%p\" size=\"0x%llx\" />\n"
 #define XML_FORMAT_STRING_BLOCKINFO_END "</CodeRegions>\n"
 #define XML_FORMAT_STRING_MAPINFO_START "<Blocks>\n"
 #define XML_FORMAT_STRING_MAPINFO "<Block ilOffset=\"0x%x\" nativeStartOffset=\"0x%x\" nativeEndOffset=\"0x%x\" />\n"
@@ -265,7 +265,7 @@ HRESULT CollectMpgoProfilerData::FuncEnter2(IPrfCom * pPrfCom,
     MUST_PASS(PPRFCOM->GetClassIDName(classID, className, FALSE));
 
 	wstring key;
-    swprintf_s(buf, MAX_BUF_SIZE, L"0x%x0x%x0x%x", modID, classID, funcID);
+    swprintf_s(buf, MAX_BUF_SIZE, L"0x%llx0x%llx0x%llx", modID, classID, funcID);
     key = buf;
 
     if(mpgoProfilerDataMap.find(key) == mpgoProfilerDataMap.end())
@@ -361,7 +361,7 @@ void CollectMpgoProfilerData::GetMpgoProfileFileName(wstring& mpgoProfileFileNam
     DWORD moduleFileNameLength = 0;
 
 #ifdef _WIN32
-    moduleFileNameLength = GetModuleFileName(NULL, buf, bufSize);
+    moduleFileNameLength = GetModuleFileNameW(NULL, buf, bufSize);
 #else // _WIN32
     char narrowBuf[bufSize] = {0};
 
@@ -452,7 +452,7 @@ void CollectMpgoProfilerData::WriteMpgoProfilerData()
             for(ULONG32 i=0; i<mpd->codeInfoLength; i++)
             {
                 fprintf(fp, XML_FORMAT_STRING_BLOCKINFO, 
-                    mpd->codeInfo[i].startAddress,
+                    (void *)mpd->codeInfo[i].startAddress,
                     mpd->codeInfo[i].size);
             }
 

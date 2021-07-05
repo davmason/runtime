@@ -6,7 +6,7 @@
 #endif // __clang__ 
 
 #include "LTSCommon.h"
-#include "SigParse.h"
+#include "../SigParse.h"
 
 #include <map>
 

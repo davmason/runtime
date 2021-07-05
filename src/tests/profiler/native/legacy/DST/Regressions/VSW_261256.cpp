@@ -1,5 +1,5 @@
-#include "ProfilerCommon.h"
-#include "LegacyCompat.h" // Whidbey Framework Support
+#include "../../ProfilerCommon.h"
+#include "../../LegacyCompat.h" // Whidbey Framework Support
 
 INT VSW261256_fail;
 INT VSW261256_pass;

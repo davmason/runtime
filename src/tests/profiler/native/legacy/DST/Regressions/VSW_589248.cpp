@@ -10,7 +10,7 @@
 // 
 // ======================================================================================
 
-#include "ProfilerCommon.h"
+#include "../../ProfilerCommon.h"
 
 HRESULT VSW_589248_Verify(IPrfCom * /*pPrfCom*/)
 {

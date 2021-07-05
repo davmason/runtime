@@ -1,5 +1,5 @@
-#include "ProfilerCommon.h"
-#include "LegacyCompat.h" // Whidbey Framework Support
+#include "../../ProfilerCommon.h"
+#include "../../LegacyCompat.h" // Whidbey Framework Support
 
 class VSWhidbey_215179
 {

@@ -1,4 +1,4 @@
-#include "ProfilerCommon.h"
+#include "../ProfilerCommon.h"
 
 #ifdef WINDOWS
 #include <process.h>
@@ -12,7 +12,7 @@
 #include <stdlib.h>
 #include <chrono>
 // Legacy support
-#include "LegacyCompat.h"
+#include "../LegacyCompat.h"
 // Legacy support
  #ifdef __clang__
 #pragma clang diagnostic ignored "-Wunused-function"

@@ -1,4 +1,4 @@
-#include "ProfilerCommon.h"
+#include "../ProfilerCommon.h"
 
 using std::mutex;
 using std::lock_guard;

@@ -8,7 +8,7 @@
 // 
 // ======================================================================================
 #include "LTSCommon.h"
-#include "LegacyCompat.h"
+#include "../LegacyCompat.h"
 
 typedef vector<ThreadID> ThreadPool;
 typedef vector<AppDomainID> AppDoaminPool;

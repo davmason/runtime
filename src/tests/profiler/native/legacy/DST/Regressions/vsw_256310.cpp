@@ -1,4 +1,4 @@
-#include "ProfilerCommon.h"
+#include "../../ProfilerCommon.h"
 
 INT VSW256310_fail;
 INT VSW256310_pass;

@@ -13,7 +13,7 @@
 #ifndef __LOADER_TYPE_SYSTEM_COMMON__
 #define __LOADER_TYPE_SYSTEM_COMMON__
 
-#include "ProfilerCommon.h"
+#include "../ProfilerCommon.h"
 #include <thread>
 
 #define PLTSCOM pILTSCom

@@ -1,5 +1,5 @@
 #include "ProfilerStructs.h"
-#include "ProfilerCommonHelper.h"
+#include "../ProfilerCommonHelper.h"
 
 PrfClassInfo::PrfClassInfo( ClassID classID ) : 
     m_classID( classID ),

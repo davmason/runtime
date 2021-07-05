@@ -1,4 +1,4 @@
-#include "ProfilerCommon.h"
+#include "../../ProfilerCommon.h"
 #ifdef WINDOWS
 #include <process.h>
 #endif

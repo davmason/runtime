@@ -12,7 +12,7 @@
 #include "JITCommon.h"
 
 // Legacy support
-#include "LegacyCompat.h"
+#include "../LegacyCompat.h"
 // Legacy support
 
 /*

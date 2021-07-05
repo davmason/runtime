@@ -1,13 +1,14 @@
 
 include(functions.cmake)
 
+
 if(WIN32 AND CLR_CMAKE_TARGET_ARCH STREQUAL x64)
 	enable_language(ASM_MASM)
 	set(SOURCES
         ${SOURCES}
         ${CMAKE_CURRENT_SOURCE_DIR}/amd64helpers1.asm
         ${CMAKE_CURRENT_SOURCE_DIR}/amd64helpers3.asm)
-    
+
 	set_property(SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/amd64helpers3.asm PROPERTY LANGUAGE ASM_MASM)
 	set_property(SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/amd64helpers1.asm PROPERTY LANGUAGE ASM_MASM)
 endif(WIN32 AND CLR_CMAKE_TARGET_ARCH STREQUAL x64)

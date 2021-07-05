@@ -15,7 +15,7 @@
 // if we get a FunctionEnter2 call back for more than 31 method that is decorated with "_Inline", the test fails.
 // ======================================================================================
 
-#include "ProfilerCommon.h"
+#include "../ProfilerCommon.h"
 
 class CInlinerLocalLimit
 {

@@ -1855,7 +1855,7 @@ BOOL DynamicIL::CreateProlog(CMethodInfo *pMethodInfo)
         //    ldc.i4   //functionID
         //    call void [DynamicIL]PInvokeHelloCallback(moduleID, functionID)
         */
-#if WIN64 || _AMD64_ || _IA64_ || __ARM_ARCH_ISA_A64 || defined (_M_ARM64)
+#if defined(WIN64) || defined(_AMD64_) || defined(_IA64_) || defined(__ARM_ARCH_ISA_A64) || defined (_M_ARM64)
         EmitIL(pMethodInfo->m_ILProlog, &pMethodInfo->m_cbILProlog, Opcode_ldc_i8);
         EmitILPTR(pMethodInfo->m_ILProlog, &pMethodInfo->m_cbILProlog, pMethodInfo->m_moduleID, 8);
         EmitIL(pMethodInfo->m_ILProlog, &pMethodInfo->m_cbILProlog, Opcode_ldc_i8);

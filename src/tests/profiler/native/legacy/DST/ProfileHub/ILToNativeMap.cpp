@@ -1,4 +1,4 @@
-#include "ProfilerCommon.h"
+#include "../../ProfilerCommon.h"
 
 #pragma warning(push)
 #pragma warning( disable : 4996)
@@ -79,7 +79,7 @@ HRESULT ILToNativeMap_JITCompilationFinished(IPrfCom * pPrfCom, FunctionID funct
             pILToNativeMap->m_fpMapXml,
             L"    <method token=\"0x%x\" id=\"0x%p\">\n",
             methodDef,
-            functionID);
+            (void *)functionID);
         fwprintf(
             pILToNativeMap->m_fpMapXml,
             L"        <sequencePoints>\n");

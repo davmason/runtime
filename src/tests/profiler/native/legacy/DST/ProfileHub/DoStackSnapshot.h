@@ -1,4 +1,4 @@
-#include "ProfilerCommon.h"
+#include "../../ProfilerCommon.h"
 
 #if defined(__linux__) || defined(OSX)
 #include <sys/mman.h>

@@ -1,4 +1,4 @@
-#include "ProfilerCommon.h"
+#include "../../ProfilerCommon.h"
 
 typedef stack<int> NestedRemotingStack_t;
 typedef map<ThreadID, NestedRemotingStack_t *> ThreadInvocationMap_t;

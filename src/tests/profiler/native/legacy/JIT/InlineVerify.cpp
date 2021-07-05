@@ -12,7 +12,7 @@
 // if we get a FunctionEnter2 call back for any method that is decorated with "_Inline", the test fails.
 // ======================================================================================
 
-#include "ProfilerCommon.h"
+#include "../ProfilerCommon.h"
 
 class CInlineTest
 {

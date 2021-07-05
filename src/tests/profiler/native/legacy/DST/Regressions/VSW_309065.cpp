@@ -1,5 +1,5 @@
-#include "ProfilerCommon.h"
-#include "LegacyCompat.h" // Whidbey Framework Support
+#include "../../ProfilerCommon.h"
+#include "../../LegacyCompat.h" // Whidbey Framework Support
 
 #if defined(WINDOWS) && !defined(OSX)
 #include <malloc.h>

@@ -32,7 +32,7 @@
 
 // TODO: reference additional headers your program requires here
 #include <assert.h>
-#include "ProfilerCommon.h"
+#include "../../ProfilerCommon.h"
 #include "corhlpr.h"
 
 #define HEADERSIZE_TINY 1

@@ -1,7 +1,7 @@
 #include "GCCommon.h"
 
 // Legacy support
-#include "LegacyCompat.h"
+#include "../LegacyCompat.h"
 // Legacy support
 
 HRESULT EnumObjectsVerifyGCState(IPrfCom * pPrfCom);

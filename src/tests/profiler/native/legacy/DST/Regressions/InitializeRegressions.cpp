@@ -1,4 +1,4 @@
-#include "ProfilerCommon.h"
+#include "../../ProfilerCommon.h"
 extern PMODULEMETHODTABLE pCallTable; 
 extern IPrfCom * g_satellite_pPrfCom;
 
@@ -43,7 +43,7 @@ extern IPrfCom * g_satellite_pPrfCom;
 
     #ifndef _INCLUDE_LEGACY_FUNCTIONS_
     #define _INCLUDE_LEGACY_FUNCTIONS_
-    #include "LegacyCompat.h"
+    #include "../../LegacyCompat.h"
     extern IPrfCom* g_pPrfCom_LegacyCompat;
     #endif
 

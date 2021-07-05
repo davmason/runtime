@@ -1,7 +1,7 @@
-#include "ProfilerCommon.h"
+#include "../ProfilerCommon.h"
 
 // Legacy support
-#include "LegacyCompat.h"
+#include "../LegacyCompat.h"
 // Legacy support
 
 INT gGetClassRoundTrip_error;

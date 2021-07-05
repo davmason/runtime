@@ -8,7 +8,7 @@
 //
 // ======================================================================================
 
-#include "ProfilerCommon.h"
+#include "../ProfilerCommon.h"
 
 #ifndef __PROFILE_JIT_COMMON__
 #define __PROFILE_JIT_COMMON__

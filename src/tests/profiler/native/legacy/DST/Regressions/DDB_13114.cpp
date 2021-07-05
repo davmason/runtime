@@ -10,7 +10,7 @@
 // 
 // ======================================================================================
 
-#include "ProfilerCommon.h"
+#include "../../ProfilerCommon.h"
 
 HRESULT DDB_13114_Verify(IPrfCom * /*pPrfCom*/)
 {

@@ -11,7 +11,7 @@
 // if we GET a FunctionEnter2 call back for methods that are decorated with "_NoInline", the test PASSES.
 // ======================================================================================
 
-#include "ProfilerCommon.h"
+#include "../ProfilerCommon.h"
 
 class CNoInlineTest
 {

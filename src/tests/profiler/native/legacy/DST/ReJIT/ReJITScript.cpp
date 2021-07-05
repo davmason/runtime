@@ -1,5 +1,5 @@
-#include "ProfilerCommon.h"
-#include "ProfilerCommonHelper.h"
+#include "../../ProfilerCommon.h"
+#include "../../ProfilerCommonHelper.h"
 #include "ReJITScript.h"
 #include <algorithm>
 #include <thread>

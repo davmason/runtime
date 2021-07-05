@@ -1,4 +1,5 @@
-cmake_minimum_required (VERSION 3.5.2)
+
+include_directories(../)
 
 add_subdirectory(ProfileHub)
 add_subdirectory(InjectMetaData)

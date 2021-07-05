@@ -15,7 +15,7 @@
 #endif // __clang__
 
 #include "GCCommon.h"
-#include "LegacyCompat.h"
+#include "../LegacyCompat.h"
 
 #define GCATTACH_FAILURE(message)       \
     m_ulFailure++;                      \

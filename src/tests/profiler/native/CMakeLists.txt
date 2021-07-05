@@ -27,7 +27,7 @@ add_subdirectory(legacy)
 include_directories(../../../coreclr/pal/prebuilt/inc)
 
 if(WIN32)
-    add_compile_options(/std:c++17)
+    add_compile_options(/std:c++17 /GR /wd4828)
 else(WIN32)
     add_compile_options(-std=c++17)
 endif(WIN32)

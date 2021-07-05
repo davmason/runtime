@@ -464,7 +464,7 @@ VOID PrfCommon::Display(std::wstringstream& sstrm)
 	sstrm << L"\n";
     WriteLogFile(sstrm.str());
 #ifdef _WIN32
-    OutputDebugString(sstrm.str().c_str());
+    OutputDebugStringW(sstrm.str().c_str());
 #endif // _WIN32
 	//sstrm.str(L"");
 	sstrm.clear();
