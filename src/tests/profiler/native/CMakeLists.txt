@@ -44,7 +44,6 @@ if(NOT WIN32)
     endif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif(NOT WIN32)
 
-message(${SOURCES})
 # add the executable
 add_library(Profiler SHARED ${SOURCES})
 
