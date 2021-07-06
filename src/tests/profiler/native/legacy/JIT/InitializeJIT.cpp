@@ -23,7 +23,6 @@ void CollectMpgoProfilerData_Initialize(IPrfCom * pPrfCom, PMODULEMETHODTABLE pM
 
 extern "C" void JIT_Satellite_Initialize(IPrfCom * pPrfCom, PMODULEMETHODTABLE pModuleMethodTable, const wstring& testName)
 {
-	pPrfCom->FreeOutputFiles(TRUE);
     JITCommon * pJITCommon = new JITCommon(pPrfCom->m_pInfo);
     SET_DERIVED_POINTER(pJITCommon);
 

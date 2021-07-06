@@ -200,27 +200,6 @@ PrfCommon::PrfCommon(ICorProfilerInfo3 *pInfo3)
         m_asynchEvent = NULL;
     }
 
-    wstring wszOutputFile = ReadEnvironmentVariable(ENVVAR_BPD_OUTPUTFILE); 
-    if (wszOutputFile.size() == 0)
-    {
-        wszOutputFile = L"BPDoutput.log";
-    }
-
-    if(m_OutputFileStream.is_open())
-    {
-        m_OutputFileStream.close();
-    }
-
-    string narrowName = ToNarrow(wszOutputFile);
-    ::remove(narrowName.c_str());
-    m_OutputFileStream.open(narrowName);
-
-    // Open output file stream.
-	if (!m_OutputFileStream.is_open()) 
-	{
-        FAILURE(L"Cannot open output file for logging");
-    }
-
     // Are we running in startup mode or attach mode?    
     wstring attach = ReadEnvironmentVariable(ENVVAR_BPD_ATTACHMODE); 
     m_bAttachMode = attach.size() > 0;
@@ -378,19 +357,6 @@ PrfCommon::PrfCommon(ICorProfilerInfo3 *pInfo3)
 	m_ulError = 0;
 }
 
-
-VOID PrfCommon::FreeOutputFiles(BOOL delFile)
-{ 
-    m_OutputFileStream.close();
-
-    if (delFile)
-    {
-        string narrowName = ToNarrow(m_wszOutputFile);
-        ::remove(narrowName.c_str());
-    }
-}
-
-
 PrfCommon::~PrfCommon()
 {
     if (m_pInfo)
@@ -404,8 +370,6 @@ PrfCommon::~PrfCommon()
         m_pInfo4->Release();
         m_pInfo4 = NULL;
     }
-
-    FreeOutputFiles(FALSE);
 }
 
 // Called by Asynchronous satellite to setup TestProfiler for Asynchronous Profiling
@@ -444,22 +408,12 @@ HRESULT PrfCommon::ReleaseHardSuspend()
     return S_OK;
 }
 
-//
-// Prints message in the string stream to the console window. If profiling ASP or a Service, redirects to the
-// log file.
-//
-VOID PrfCommon::WriteLogFile(const wstring& log)
-{
-    lock_guard<mutex> guard(m_logFileMutex);
-
-    m_OutputFileStream << log;
-    m_OutputFileStream.flush();
-}
-
 VOID PrfCommon::Display(std::wstringstream& sstrm)
 {
+    lock_guard<mutex> guard(m_outputMutex);
+
 	sstrm << L"\n";
-    WriteLogFile(sstrm.str());
+    wprintf(L"%s", sstrm.str().c_str());
 #ifdef _WIN32
     OutputDebugStringW(sstrm.str().c_str());
 #endif // _WIN32
@@ -477,9 +431,11 @@ VOID PrfCommon::Error(std::wstringstream& sstrm)
 
     // Create title string with key word for DHandler and process/thread info
     // Log error to output file
-    WriteLogFile(L"\nERROR: Test Failure: ");
-	sstrm << L"\n";
-	WriteLogFile(sstrm.str());
+    std::wstringstream prefix;
+    prefix << L"\nERROR: Test Failure: ";
+    Display(prefix);
+    
+	Display(sstrm);
 	//sstrm.str(L"");
 	sstrm.clear();
 }

@@ -124,7 +124,6 @@ using std::ios;
 //
 //  Test_Initialize(IPrfCom * pPrfCom, PMODULEMETHODTABLE pModuleMethodTable, const wstring& testName)
 //  {
-//      pPrfCom->FreeOutputFiles(TRUE);
 //      INewCommon * pINewCommon = new INewCommon(pPrfCom->m_fProfilingASPorService);
 //      SET_DERIVED_POINTER(pINewCommon);
 //      ...
@@ -346,7 +345,7 @@ class IPrfCom
         std::recursive_mutex m_asynchronousCriticalSection; // For synchronization in callbacks.
         
         // Output critical sections to protect output string streams
-        std::mutex m_logFileMutex;
+        std::mutex m_outputMutex;
 
         // Test class instance pointer.
         PVOID m_pTestClassInstance;
@@ -368,8 +367,7 @@ class IPrfCom
         // Output functions
         virtual VOID Display(std::wstringstream& sstrm) = 0;
         virtual VOID Error(std::wstringstream& sstrm) = 0;
-        virtual VOID FreeOutputFiles(BOOL delFile)  = 0; // Only used when deriving a new PrfCom.
-
+        
         // Common utility routines
         virtual HRESULT GetAppDomainIDName(AppDomainID appdomainId, wstring &name, const BOOL full = FALSE) = 0;
         virtual HRESULT GetAssemblyIDName(AssemblyID assemblyId, wstring &name, const BOOL full = FALSE) = 0;
@@ -542,7 +540,6 @@ class PrfCommon: public IPrfCom
 
         virtual VOID Display(std::wstringstream& sstrm);
         virtual VOID Error(std::wstringstream& sstrm);
-        virtual VOID FreeOutputFiles(BOOL delFile);
 
         virtual HRESULT GetAppDomainIDName(AppDomainID appdomainId, wstring &name, const BOOL full = FALSE);
         virtual HRESULT GetAssemblyIDName(AssemblyID assemblyId, wstring &name, const BOOL full = FALSE);
@@ -553,11 +550,6 @@ class PrfCommon: public IPrfCom
         virtual BOOL IsFunctionStatic(FunctionID funcId, const COR_PRF_FRAME_INFO frameInfo = 0);
 
         virtual HRESULT RemoveEvent(DWORD event);
-private:
-        // log file
-        std::wstring         m_wszOutputFile;
-        std::wofstream   m_OutputFileStream;
-        VOID            PrfCommon::WriteLogFile(const wstring &log);
 
 };
 

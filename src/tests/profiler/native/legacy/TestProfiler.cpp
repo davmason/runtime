@@ -510,8 +510,6 @@ TestProfiler::~TestProfiler()
 
 HRESULT TestProfiler::CommonInit(IUnknown *pProfilerInfoUnk)
 {
-    ShutdownGuard::Initialize();
-
     wstring wszSatelliteModule;
     wstring wszTestName;
     DWORD dwRet = 0;
@@ -653,6 +651,8 @@ HRESULT TestProfiler::SetELTHooks()
 
 HRESULT TestProfiler::Initialize(IUnknown *pProfilerInfoUnk)
 {
+    Profiler::Initialize(pProfilerInfoUnk);
+
     HRESULT hr = CommonInit(pProfilerInfoUnk);
     if (hr != S_OK)
     {
@@ -704,8 +704,7 @@ HRESULT STDMETHODCALLTYPE TestProfiler::ProfilerDetachSucceeded()
 
 HRESULT STDMETHODCALLTYPE TestProfiler::Shutdown()
 {
-    // Wait for any in progress ELT hooks to finish
-    ShutdownGuard::WaitForInProgressHooks();
+    Profiler::Shutdown();
 
     HRESULT hr = S_OK;
     ++(PPRFCOM->m_Shutdown);
@@ -980,7 +979,7 @@ HRESULT TestProfiler::VerificationRoutine()
         else
         {
             DISPLAY(L"");
-            DISPLAY(L"TEST PASSED");
+            DISPLAY(L"PROFILER TEST PASSES");
         }
     }
 

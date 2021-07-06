@@ -22,7 +22,6 @@ void InspectArgAndRetVal_Initialize(IPrfCom * pPrfCom, PMODULEMETHODTABLE pModul
 
 extern "C" void LTS_Satellite_Initialize(IPrfCom * pPrfCom, PMODULEMETHODTABLE pModuleMethodTable, const wstring& testName)
 {
-    pPrfCom->FreeOutputFiles(TRUE);
     LTSCommon * pLTSCommon = new LTSCommon(pPrfCom->m_pInfo);
     SET_DERIVED_POINTER(pLTSCommon);
 

@@ -21,7 +21,6 @@ extern "C" void GC_Satellite_Initialize(IPrfCom * pPrfCom, PMODULEMETHODTABLE pM
 {
     DISPLAY(L"Initialize GC : " << testName);
 
-    pPrfCom->FreeOutputFiles(TRUE);
     GCCommon * pGCCommon = new GCCommon(pPrfCom->m_pInfo);
     SET_DERIVED_POINTER(pGCCommon);
 
