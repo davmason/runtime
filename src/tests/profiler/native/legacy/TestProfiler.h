@@ -18,11 +18,6 @@
 #include <windows.h>
 #endif
 
-#ifdef __clang__
-#include <assert.h>
-#define _ASSERTE(x) assert(x)
-#endif // __clang__
-
 // Printing, logging, booking, helper, and utility routines used by TestProfiler and Satellite Modules.
 #include "ProfilerCommon.h"
 

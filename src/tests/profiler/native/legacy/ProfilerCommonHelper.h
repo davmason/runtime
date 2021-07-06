@@ -6,10 +6,10 @@
 #include <algorithm>
 
 
-template<typename T>
+template<typename T, typename U>
 void FreeAndEraseMap(T &map)
 {
-    std::for_each(map.begin(), map.end(), [](auto x) { delete x.second; });
+    std::for_each(map.begin(), map.end(), [](U x) { delete x.second; });
     map.clear();
 }
 
