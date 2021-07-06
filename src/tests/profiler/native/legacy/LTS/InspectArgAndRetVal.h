@@ -1,3 +1,6 @@
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+
 #ifndef __INSPECT_ARG_AND_RET_VAL__
 #define __INSPECT_ARG_AND_RET_VAL__
 

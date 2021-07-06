@@ -1,3 +1,6 @@
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+
 #include "stdafx.h"
 
 /* This code transfers metadata and code from a source assembly to a target assembly. The source assembly must be loaded enough to provide IMetaDataImport and a memory mapped image, but it need not be executable.

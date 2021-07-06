@@ -1,3 +1,6 @@
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+
 // ==++==
 // 
 //   Copyright (c) Microsoft Corporation.  All rights reserved.
@@ -119,11 +122,11 @@ HRESULT FinalizerQueue::FinalizeableObjectQueued(IPrfCom * pPrfCom ,
 // FinalizerQueue::Verify determines and reports result of the test run
 //
 // Arguments:
-//    pPrfCom – ProfilerCommon utility class pointer
+//    pPrfCom ï¿½ ProfilerCommon utility class pointer
 //
 // Return Value:
 //    S_OK   - Test Passed
-//    E_FAIL – Test Failed
+//    E_FAIL ï¿½ Test Failed
 //
 // Assumptions:
 //    
@@ -156,11 +159,11 @@ HRESULT FinalizerQueue::Verify(IPrfCom * pPrfCom)
 // FinalizerQueue_Verify calls the test class verification function
 //
 // Arguments:
-//    pPrfCom – ProfilerCommon utility class pointer
+//    pPrfCom ï¿½ ProfilerCommon utility class pointer
 //
 // Return Value:
 //    S_OK   - Test Passed
-//    E_FAIL – Test Failed
+//    E_FAIL ï¿½ Test Failed
 //
 // Assumptions:
 //    
@@ -185,7 +188,7 @@ HRESULT FinalizerQueue_Verify(IPrfCom * pPrfCom)
 // FinalizerQueue_Initialize informs TestProfiler how to deliver callbacks to test class
 //
 // Arguments:
-//    pPrfCom            – ProfilerCommon utility class pointer
+//    pPrfCom            ï¿½ ProfilerCommon utility class pointer
 //    pModuleMethodTable - Struct of function pointers defining callbacks and class info
 //
 // Return Value:

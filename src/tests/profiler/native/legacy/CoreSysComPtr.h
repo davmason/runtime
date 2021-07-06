@@ -1,3 +1,6 @@
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+
 /***
 * comip.h - Native C++ compiler COM support - COM interface pointers header
 *

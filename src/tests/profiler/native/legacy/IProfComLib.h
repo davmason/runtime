@@ -1,3 +1,6 @@
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+
 #ifndef __IPROFILER_COMMUNICATION_LIBRARY__
 #define __IPROFILER_COMMUNICATION_LIBRARY__
 
