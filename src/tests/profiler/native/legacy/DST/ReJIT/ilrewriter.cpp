@@ -1,6 +1,6 @@
 #include "../../ProfilerCommon.h"
 #include "ReJITScript.h"
-#include "../../../ILRewriter.h"
+#include "../../../ilrewriter.h"
 // #include <corhlpr.cpp>
 
 
