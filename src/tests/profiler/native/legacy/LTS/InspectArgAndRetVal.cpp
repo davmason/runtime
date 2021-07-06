@@ -1,7 +1,9 @@
 
 #include "InspectArgAndRetVal.h"
 
-static const mdToken g_tkCorEncodeToken[4] ={mdtTypeDef, mdtTypeRef, mdtTypeSpec, mdtBaseType};
+#ifndef WIN32
+const mdToken g_tkCorEncodeToken[4] ={mdtTypeDef, mdtTypeRef, mdtTypeSpec, mdtBaseType};
+#endif // WIN32
 
 InspectArgAndRetVal::InspectArgAndRetVal(IPrfCom * pPrfCom, 
                                          InspectionTestFlags testFlags)
