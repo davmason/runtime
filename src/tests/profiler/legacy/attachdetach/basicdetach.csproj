@@ -14,8 +14,8 @@
   <ItemGroup>
     <Compile Include="$(MSBuildProjectName).cs" />
     <ProjectReference Include="$(TestSourceDir)Common/CoreCLRTestLibrary/CoreCLRTestLibrary.csproj" />
-    <ProjectReference Include="../common/profiler_common.csproj" />
-    <ProjectReference Include="../legacy_targets/legacy_targets.csproj" />
-    <ProjectReference Include="$(MSBuildThisFileDirectory)/../native/CMakeLists.txt" />
+    <ProjectReference Include="../../common/profiler_common.csproj" />
+    <ProjectReference Include="../targets/legacy_targets.csproj" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)/../../native/CMakeLists.txt" />
   </ItemGroup>
 </Project>
