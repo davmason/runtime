@@ -21,6 +21,7 @@
 #include <windows.h>
 #endif
 
+#ifdef WIN32
 #ifndef DECLSPEC_EXPORT
 #define DECLSPEC_EXPORT __declspec(dllexport)
 #endif//DECLSPEC_EXPORT
@@ -29,13 +30,18 @@
 #define DECLSPEC_IMPORT __declspec(dllimport)
 #endif//DECLSPEC_IMPORT
 
-#ifndef EXTERN_C
-#define EXTERN_C extern "C"
-#endif//EXTERN_C
-
 #ifndef NAKED 
 #define NAKED __declspec(naked)
 #endif//NAKED
+#else // WIN32
+#define DECLSPEC_EXPORT
+#define DECLSPEC_IMPORT
+#define NAKED
+#endif // WIN32
+
+#ifndef EXTERN_C
+#define EXTERN_C extern "C"
+#endif//EXTERN_C
 
 // Runtime includes
 #include "cor.h"

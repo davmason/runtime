@@ -4,12 +4,12 @@
 #include <cassert>
 #include <cstring>
 #include <algorithm>
+#include <map>
 
-
-template<typename T, typename U>
-void FreeAndEraseMap(T &map)
+template<class Key, class T, class Compare, class Allocator, template <class, class, class, class> class MapType>
+void FreeAndEraseMap(MapType<Key, T, Compare, Allocator> &map)
 {
-    std::for_each(map.begin(), map.end(), [](U x) { delete x.second; });
+    std::for_each(map.begin(), map.end(), [](std::pair<const Key, T> x) { delete x.second; });
     map.clear();
 }
 

@@ -1031,12 +1031,10 @@ void ReJITScript::AddManagedHelperMethod(
         IMAGE_CEE_CS_CALLCONV_DEFAULT,  //__stdcall
         3,
         ELEMENT_TYPE_VOID,              // returns void
-#ifdef _X86_
-        ELEMENT_TYPE_U4,                // ModuleID
-#elif defined(_AMD64_) || defined(__ARM_ARCH_ISA_A64) || defined (_M_ARM64)
-        ELEMENT_TYPE_U8,                // ModuleID
+#ifdef HOST_64BIT
+        ELEMENT_TYPE_U8,
 #else
-#error REJIT TEST NOT IMPLEMENTED FOR YOUR ARCHITECTURE
+        ELEMENT_TYPE_U4,                // ModuleID
 #endif
         ELEMENT_TYPE_U4,                // mdMethodDef token
         ELEMENT_TYPE_I4,                // Rejit version number

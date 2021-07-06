@@ -1,4 +1,7 @@
+
 #include "InspectArgAndRetVal.h"
+
+static const mdToken g_tkCorEncodeToken[4] ={mdtTypeDef, mdtTypeRef, mdtTypeSpec, mdtBaseType};
 
 InspectArgAndRetVal::InspectArgAndRetVal(IPrfCom * pPrfCom, 
                                          InspectionTestFlags testFlags)

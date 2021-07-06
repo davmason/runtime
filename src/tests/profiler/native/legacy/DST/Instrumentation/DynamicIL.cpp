@@ -1489,7 +1489,7 @@ void DynamicIL::CreateNewFunctionBodyFat(CMethodInfo *pMethodInfo)
     // specify the new method size
     memcpy((BYTE*)pNewMethodHeader + 4, (void*)&cbNewMethodSizeWithoutHeader, sizeof(ULONG) /*DWORD*/);
     // copy the prolog
-    _ASSERTE(pMethodInfo->m_ILProlog > 0);
+    _ASSERTE(pMethodInfo->m_ILProlog != NULL);
     memcpy((BYTE*)pNewMethodHeader + HEADERSIZE_FAT, (void*)pMethodInfo->m_ILProlog, pMethodInfo->m_cbILProlog);
     // copy old function body
     _ASSERTE(cbMethodSizeWithoutHeader > 0);
