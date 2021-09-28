@@ -84,13 +84,12 @@ inline void ProfilerInfo::ResetPerSessionStatus()
 inline void ProfilerInfo::Init()
 {
     curProfStatus.Init();
-    dwProfilerEvacuationCounter = 0;
     ResetPerSessionStatus();
     inUse = FALSE;
 }
 
 template<typename ConditionFunc>
-inline BOOL AnyProfilerPassesCondition(ConditionFunc condition)
+FORCEINLINE BOOL AnyProfilerPassesCondition(ConditionFunc condition)
 {
     BOOL anyPassed = FALSE;
     (&g_profControlBlock)->DoProfilerCallback(ProfilerCallbackType::ActiveOrInitializing,
@@ -120,10 +119,13 @@ inline void ProfControlBlock::Init()
     CONTRACTL_END;
 
     mainProfilerInfo.Init();
+    // Special magic value for the main one
+    mainProfilerInfo.slot = MAX_NOTIFICATION_PROFILERS;
 
     for (SIZE_T i = 0; i < MAX_NOTIFICATION_PROFILERS; ++i)
     {
         notificationOnlyProfilers[i].Init();
+        notificationOnlyProfilers[i].slot = (DWORD)i;
     }
 
     globalEventMask.SetEventMask(COR_PRF_MONITOR_NONE);
@@ -227,22 +229,22 @@ inline void ProfControlBlock::UpdateGlobalEventMask()
 }
 #endif // DACCESS_COMPILE
 
-inline BOOL ProfControlBlock::IsCallback3Supported()
+FORCEINLINE BOOL ProfControlBlock::IsCallback3Supported()
 {
     return AnyProfilerPassesCondition([](ProfilerInfo *pProfilerInfo) { return pProfilerInfo->pProfInterface->IsCallback3Supported(); });
 }
 
-inline BOOL ProfControlBlock::IsCallback5Supported()
+FORCEINLINE BOOL ProfControlBlock::IsCallback5Supported()
 {
     return AnyProfilerPassesCondition([](ProfilerInfo *pProfilerInfo) { return pProfilerInfo->pProfInterface->IsCallback5Supported(); });
 }
 
-inline BOOL ProfControlBlock::IsDisableTransparencySet()
+FORCEINLINE BOOL ProfControlBlock::IsDisableTransparencySet()
 {
     return AnyProfilerPassesCondition([](ProfilerInfo *pProfilerInfo) { return pProfilerInfo->eventMask.IsEventMaskSet(COR_PRF_DISABLE_TRANSPARENCY_CHECKS_UNDER_FULL_TRUST); });
 }
 
-inline BOOL ProfControlBlock::RequiresGenericsContextForEnterLeave()
+FORCEINLINE BOOL ProfControlBlock::RequiresGenericsContextForEnterLeave()
 {
     return AnyProfilerPassesCondition([](ProfilerInfo *pProfilerInfo) { return pProfilerInfo->pProfInterface->RequiresGenericsContextForEnterLeave(); }); 
 }
@@ -1664,14 +1666,15 @@ inline void ProfControlBlock::EventPipeProviderCreated(EventPipeProvider *provid
 // and what features it enabled callbacks for.
 //---------------------------------------------------------------------------------------
 
-inline BOOL CORProfilerPresent()
+FORCEINLINE BOOL CORProfilerPresent()
 {
     LIMITED_METHOD_DAC_CONTRACT;
 
-    return AnyProfilerPassesCondition([](ProfilerInfo *pProfilerInfo) { return pProfilerInfo->curProfStatus.Get() >= kProfStatusActive; });
+    return (&g_profControlBlock)->mainProfilerInfo.pProfInterface.Load() != NULL 
+            || (&g_profControlBlock)->notificationProfilerCount.Load() > 0;
 }
 
-inline BOOL CORMainProfilerPresent()
+FORCEINLINE BOOL CORMainProfilerPresent()
 {
     LIMITED_METHOD_DAC_CONTRACT;
 
@@ -1681,7 +1684,7 @@ inline BOOL CORMainProfilerPresent()
 // These return whether a CLR Profiler is actively loaded AND has requested the
 // specified callback or functionality
 
-inline BOOL CORProfilerFunctionIDMapperEnabled()
+FORCEINLINE BOOL CORProfilerFunctionIDMapperEnabled()
 {
     CONTRACTL
     {
@@ -1698,7 +1701,7 @@ inline BOOL CORProfilerFunctionIDMapperEnabled()
         ));
 }
 
-inline BOOL CORProfilerTrackJITInfo()
+FORCEINLINE BOOL CORProfilerTrackJITInfo()
 {
     CONTRACTL
     {
@@ -1712,7 +1715,7 @@ inline BOOL CORProfilerTrackJITInfo()
             (&g_profControlBlock)->globalEventMask.IsEventMaskSet(COR_PRF_MONITOR_JIT_COMPILATION));
 }
 
-inline BOOL CORProfilerTrackCacheSearches()
+FORCEINLINE BOOL CORProfilerTrackCacheSearches()
 {
     CONTRACTL
     {
@@ -1726,7 +1729,7 @@ inline BOOL CORProfilerTrackCacheSearches()
             (&g_profControlBlock)->globalEventMask.IsEventMaskSet(COR_PRF_MONITOR_CACHE_SEARCHES));
 }
 
-inline BOOL CORProfilerTrackModuleLoads()
+FORCEINLINE BOOL CORProfilerTrackModuleLoads()
 {
     CONTRACTL
     {
@@ -1740,7 +1743,7 @@ inline BOOL CORProfilerTrackModuleLoads()
             (&g_profControlBlock)->globalEventMask.IsEventMaskSet(COR_PRF_MONITOR_MODULE_LOADS));
 }
 
-inline BOOL CORProfilerTrackAssemblyLoads()
+FORCEINLINE BOOL CORProfilerTrackAssemblyLoads()
 {
     CONTRACTL
     {
@@ -1754,7 +1757,7 @@ inline BOOL CORProfilerTrackAssemblyLoads()
             (&g_profControlBlock)->globalEventMask.IsEventMaskSet(COR_PRF_MONITOR_ASSEMBLY_LOADS));
 }
 
-inline BOOL CORProfilerTrackAppDomainLoads()
+FORCEINLINE BOOL CORProfilerTrackAppDomainLoads()
 {
     CONTRACTL
     {
@@ -1768,7 +1771,7 @@ inline BOOL CORProfilerTrackAppDomainLoads()
             (&g_profControlBlock)->globalEventMask.IsEventMaskSet(COR_PRF_MONITOR_APPDOMAIN_LOADS));
 }
 
-inline BOOL CORProfilerTrackThreads()
+FORCEINLINE BOOL CORProfilerTrackThreads()
 {
     CONTRACTL
     {
@@ -1782,7 +1785,7 @@ inline BOOL CORProfilerTrackThreads()
             (&g_profControlBlock)->globalEventMask.IsEventMaskSet(COR_PRF_MONITOR_THREADS));
 }
 
-inline BOOL CORProfilerTrackClasses()
+FORCEINLINE BOOL CORProfilerTrackClasses()
 {
     CONTRACTL
     {
@@ -1796,7 +1799,7 @@ inline BOOL CORProfilerTrackClasses()
             (&g_profControlBlock)->globalEventMask.IsEventMaskSet(COR_PRF_MONITOR_CLASS_LOADS));
 }
 
-inline BOOL CORProfilerTrackGC()
+FORCEINLINE BOOL CORProfilerTrackGC()
 {
     CONTRACTL
     {
@@ -1810,7 +1813,7 @@ inline BOOL CORProfilerTrackGC()
             (&g_profControlBlock)->globalEventMask.IsEventMaskSet(COR_PRF_MONITOR_GC));
 }
 
-inline BOOL CORProfilerTrackAllocationsEnabled()
+FORCEINLINE BOOL CORProfilerTrackAllocationsEnabled()
 {
     CONTRACTL
     {
@@ -1830,7 +1833,7 @@ inline BOOL CORProfilerTrackAllocationsEnabled()
         );
 }
 
-inline BOOL CORProfilerTrackAllocations()
+FORCEINLINE BOOL CORProfilerTrackAllocations()
 {
     CONTRACTL
     {
@@ -1845,7 +1848,7 @@ inline BOOL CORProfilerTrackAllocations()
             (&g_profControlBlock)->globalEventMask.IsEventMaskSet(COR_PRF_MONITOR_OBJECT_ALLOCATED));
 }
 
-inline BOOL CORProfilerTrackLargeAllocations()
+FORCEINLINE BOOL CORProfilerTrackLargeAllocations()
 {
     CONTRACTL
     {
@@ -1860,7 +1863,7 @@ inline BOOL CORProfilerTrackLargeAllocations()
             (&g_profControlBlock)->globalEventMask.IsEventMaskHighSet(COR_PRF_HIGH_MONITOR_LARGEOBJECT_ALLOCATED));
 }
 
-inline BOOL CORProfilerTrackPinnedAllocations()
+FORCEINLINE BOOL CORProfilerTrackPinnedAllocations()
 {
     CONTRACTL
     {
@@ -1875,7 +1878,7 @@ inline BOOL CORProfilerTrackPinnedAllocations()
             (&g_profControlBlock)->globalEventMask.IsEventMaskHighSet(COR_PRF_HIGH_MONITOR_PINNEDOBJECT_ALLOCATED));
 }
 
-inline BOOL CORProfilerEnableRejit()
+FORCEINLINE BOOL CORProfilerEnableRejit()
 {
     CONTRACTL
     {
@@ -1889,7 +1892,7 @@ inline BOOL CORProfilerEnableRejit()
             (&g_profControlBlock)->globalEventMask.IsEventMaskSet(COR_PRF_ENABLE_REJIT));
 }
 
-inline BOOL CORProfilerTrackExceptions()
+FORCEINLINE BOOL CORProfilerTrackExceptions()
 {
     CONTRACTL
     {
@@ -1903,7 +1906,7 @@ inline BOOL CORProfilerTrackExceptions()
             (&g_profControlBlock)->globalEventMask.IsEventMaskSet(COR_PRF_MONITOR_EXCEPTIONS));
 }
 
-inline BOOL CORProfilerTrackTransitions()
+FORCEINLINE BOOL CORProfilerTrackTransitions()
 {
     CONTRACTL
     {
@@ -1917,7 +1920,7 @@ inline BOOL CORProfilerTrackTransitions()
             (&g_profControlBlock)->globalEventMask.IsEventMaskSet(COR_PRF_MONITOR_CODE_TRANSITIONS));
 }
 
-inline BOOL CORProfilerTrackEnterLeave()
+FORCEINLINE BOOL CORProfilerTrackEnterLeave()
 {
     CONTRACTL
     {
@@ -1936,7 +1939,7 @@ inline BOOL CORProfilerTrackEnterLeave()
             (&g_profControlBlock)->globalEventMask.IsEventMaskSet(COR_PRF_MONITOR_ENTERLEAVE));
 }
 
-inline BOOL CORProfilerTrackCCW()
+FORCEINLINE BOOL CORProfilerTrackCCW()
 {
     CONTRACTL
     {
@@ -1950,7 +1953,7 @@ inline BOOL CORProfilerTrackCCW()
             (&g_profControlBlock)->globalEventMask.IsEventMaskSet(COR_PRF_MONITOR_CCW));
 }
 
-inline BOOL CORProfilerTrackSuspends()
+FORCEINLINE BOOL CORProfilerTrackSuspends()
 {
     CONTRACTL
     {
@@ -1964,7 +1967,7 @@ inline BOOL CORProfilerTrackSuspends()
             (&g_profControlBlock)->globalEventMask.IsEventMaskSet(COR_PRF_MONITOR_SUSPENDS));
 }
 
-inline BOOL CORProfilerDisableInlining()
+FORCEINLINE BOOL CORProfilerDisableInlining()
 {
     CONTRACTL
     {
@@ -1978,7 +1981,7 @@ inline BOOL CORProfilerDisableInlining()
             (&g_profControlBlock)->globalEventMask.IsEventMaskSet(COR_PRF_DISABLE_INLINING));
 }
 
-inline BOOL CORProfilerDisableOptimizations()
+FORCEINLINE BOOL CORProfilerDisableOptimizations()
 {
     CONTRACTL
     {
@@ -1993,7 +1996,7 @@ inline BOOL CORProfilerDisableOptimizations()
             (&g_profControlBlock)->globalEventMask.IsEventMaskSet(COR_PRF_DISABLE_OPTIMIZATIONS));
 }
 
-inline BOOL CORProfilerUseProfileImages()
+FORCEINLINE BOOL CORProfilerUseProfileImages()
 {
     CONTRACTL
     {
@@ -2012,7 +2015,7 @@ inline BOOL CORProfilerUseProfileImages()
             (&g_profControlBlock)->globalEventMask.IsEventMaskSet(COR_PRF_REQUIRE_PROFILE_IMAGE));
 }
 
-inline BOOL CORProfilerDisableAllNGenImages()
+FORCEINLINE BOOL CORProfilerDisableAllNGenImages()
 {
     LIMITED_METHOD_DAC_CONTRACT;
 
@@ -2020,23 +2023,11 @@ inline BOOL CORProfilerDisableAllNGenImages()
             (&g_profControlBlock)->globalEventMask.IsEventMaskSet(COR_PRF_DISABLE_ALL_NGEN_IMAGES));
 }
 
-inline BOOL CORProfilerTrackConditionalWeakTableElements()
+FORCEINLINE BOOL CORProfilerTrackConditionalWeakTableElements()
 {
     LIMITED_METHOD_DAC_CONTRACT;
 
     return CORProfilerTrackGC() && (&g_profControlBlock)->IsCallback5Supported();
-}
-
-// CORProfilerPresentOrInitializing() returns nonzero iff a CLR Profiler is actively
-// loaded and ready to receive callbacks OR a CLR Profiler has loaded just enough that it
-// is ready to receive (or is currently executing inside) its Initialize() callback.
-// Typically, you'll want to use code:CORProfilerPresent instead of this.  But there is
-// some internal profiling API code that wants to test for event flags for a profiler
-// that may still be initializing, and this function is appropriate for that code.
-inline BOOL CORProfilerPresentOrInitializing()
-{
-    LIMITED_METHOD_CONTRACT;
-    return AnyProfilerPassesCondition([](ProfilerInfo *pProfilerInfo) { return pProfilerInfo->curProfStatus.Get() > kProfStatusDetaching; });
 }
 
 // These return whether a CLR Profiler has requested the specified functionality.
@@ -2047,7 +2038,7 @@ inline BOOL CORProfilerPresentOrInitializing()
 // are used primarily during the initialization path to choose between slow / fast-path
 // ELT hooks (and later on as part of asserts).
 
-inline BOOL CORProfilerELT3SlowPathEnabled()
+FORCEINLINE BOOL CORProfilerELT3SlowPathEnabled()
 {
     CONTRACTL
     {
@@ -2057,11 +2048,11 @@ inline BOOL CORProfilerELT3SlowPathEnabled()
     }
     CONTRACTL_END;
 
-    return (CORProfilerPresentOrInitializing() &&
+    return (CORProfilerPresent() &&
         (&g_profControlBlock)->globalEventMask.IsEventMaskSet((COR_PRF_ENABLE_FUNCTION_ARGS | COR_PRF_ENABLE_FUNCTION_RETVAL | COR_PRF_ENABLE_FRAME_INFO)));
 }
 
-inline BOOL CORProfilerELT3SlowPathEnterEnabled()
+FORCEINLINE BOOL CORProfilerELT3SlowPathEnterEnabled()
 {
     CONTRACTL
     {
@@ -2071,11 +2062,11 @@ inline BOOL CORProfilerELT3SlowPathEnterEnabled()
     }
     CONTRACTL_END;
 
-    return (CORProfilerPresentOrInitializing() &&
+    return (CORProfilerPresent() &&
         (&g_profControlBlock)->globalEventMask.IsEventMaskSet((COR_PRF_ENABLE_FUNCTION_ARGS | COR_PRF_ENABLE_FRAME_INFO)));
 }
 
-inline BOOL CORProfilerELT3SlowPathLeaveEnabled()
+FORCEINLINE BOOL CORProfilerELT3SlowPathLeaveEnabled()
 {
     CONTRACTL
     {
@@ -2085,11 +2076,11 @@ inline BOOL CORProfilerELT3SlowPathLeaveEnabled()
     }
     CONTRACTL_END;
 
-    return (CORProfilerPresentOrInitializing() &&
+    return (CORProfilerPresent() &&
         (&g_profControlBlock)->globalEventMask.IsEventMaskSet((COR_PRF_ENABLE_FUNCTION_RETVAL | COR_PRF_ENABLE_FRAME_INFO)));
 }
 
-inline BOOL CORProfilerELT3SlowPathTailcallEnabled()
+FORCEINLINE BOOL CORProfilerELT3SlowPathTailcallEnabled()
 {
     CONTRACTL
     {
@@ -2099,11 +2090,11 @@ inline BOOL CORProfilerELT3SlowPathTailcallEnabled()
     }
     CONTRACTL_END;
 
-    return (CORProfilerPresentOrInitializing() &&
+    return (CORProfilerPresent() &&
         (&g_profControlBlock)->globalEventMask.IsEventMaskSet((COR_PRF_ENABLE_FRAME_INFO)));
 }
 
-inline BOOL CORProfilerELT2FastPathEnterEnabled()
+FORCEINLINE BOOL CORProfilerELT2FastPathEnterEnabled()
 {
     CONTRACTL
     {
@@ -2113,11 +2104,11 @@ inline BOOL CORProfilerELT2FastPathEnterEnabled()
     }
     CONTRACTL_END;
 
-    return (CORProfilerPresentOrInitializing() &&
+    return (CORProfilerPresent() &&
         !((&g_profControlBlock)->globalEventMask.IsEventMaskSet((COR_PRF_ENABLE_STACK_SNAPSHOT | COR_PRF_ENABLE_FUNCTION_ARGS | COR_PRF_ENABLE_FRAME_INFO))));
 }
 
-inline BOOL CORProfilerELT2FastPathLeaveEnabled()
+FORCEINLINE BOOL CORProfilerELT2FastPathLeaveEnabled()
 {
     CONTRACTL
     {
@@ -2127,11 +2118,11 @@ inline BOOL CORProfilerELT2FastPathLeaveEnabled()
     }
     CONTRACTL_END;
 
-    return (CORProfilerPresentOrInitializing() &&
+    return (CORProfilerPresent() &&
         !((&g_profControlBlock)->globalEventMask.IsEventMaskSet((COR_PRF_ENABLE_STACK_SNAPSHOT | COR_PRF_ENABLE_FUNCTION_RETVAL | COR_PRF_ENABLE_FRAME_INFO))));
 }
 
-inline BOOL CORProfilerELT2FastPathTailcallEnabled()
+FORCEINLINE BOOL CORProfilerELT2FastPathTailcallEnabled()
 {
     CONTRACTL
     {
@@ -2141,11 +2132,11 @@ inline BOOL CORProfilerELT2FastPathTailcallEnabled()
     }
     CONTRACTL_END;
 
-    return (CORProfilerPresentOrInitializing() &&
+    return (CORProfilerPresent() &&
         !((&g_profControlBlock)->globalEventMask.IsEventMaskSet((COR_PRF_ENABLE_STACK_SNAPSHOT | COR_PRF_ENABLE_FRAME_INFO))));
 }
 
-inline BOOL CORProfilerFunctionArgsEnabled()
+FORCEINLINE BOOL CORProfilerFunctionArgsEnabled()
 {
     CONTRACTL
     {
@@ -2155,11 +2146,11 @@ inline BOOL CORProfilerFunctionArgsEnabled()
     }
     CONTRACTL_END;
 
-    return (CORProfilerPresentOrInitializing() &&
+    return (CORProfilerPresent() &&
         (&g_profControlBlock)->globalEventMask.IsEventMaskSet(COR_PRF_ENABLE_FUNCTION_ARGS));
 }
 
-inline BOOL CORProfilerFunctionReturnValueEnabled()
+FORCEINLINE BOOL CORProfilerFunctionReturnValueEnabled()
 {
     CONTRACTL
     {
@@ -2169,11 +2160,11 @@ inline BOOL CORProfilerFunctionReturnValueEnabled()
     }
     CONTRACTL_END;
 
-    return (CORProfilerPresentOrInitializing() &&
+    return (CORProfilerPresent() &&
         (&g_profControlBlock)->globalEventMask.IsEventMaskSet(COR_PRF_ENABLE_FUNCTION_RETVAL));
 }
 
-inline BOOL CORProfilerFrameInfoEnabled()
+FORCEINLINE BOOL CORProfilerFrameInfoEnabled()
 {
     CONTRACTL
     {
@@ -2183,11 +2174,11 @@ inline BOOL CORProfilerFrameInfoEnabled()
     }
     CONTRACTL_END;
 
-    return (CORProfilerPresentOrInitializing() &&
+    return (CORProfilerPresent() &&
         (&g_profControlBlock)->globalEventMask.IsEventMaskSet(COR_PRF_ENABLE_FRAME_INFO));
 }
 
-inline BOOL CORProfilerStackSnapshotEnabled()
+FORCEINLINE BOOL CORProfilerStackSnapshotEnabled()
 {
     CONTRACTL
     {
@@ -2197,11 +2188,11 @@ inline BOOL CORProfilerStackSnapshotEnabled()
     }
     CONTRACTL_END;
 
-    return (CORProfilerPresentOrInitializing() &&
+    return (CORProfilerPresent() &&
         (&g_profControlBlock)->globalEventMask.IsEventMaskSet(COR_PRF_ENABLE_STACK_SNAPSHOT));
 }
 
-inline BOOL CORProfilerInMemorySymbolsUpdatesEnabled()
+FORCEINLINE BOOL CORProfilerInMemorySymbolsUpdatesEnabled()
 {
     CONTRACTL
     {
@@ -2215,7 +2206,7 @@ inline BOOL CORProfilerInMemorySymbolsUpdatesEnabled()
         (&g_profControlBlock)->globalEventMask.IsEventMaskHighSet(COR_PRF_HIGH_IN_MEMORY_SYMBOLS_UPDATED));
 }
 
-inline BOOL CORProfilerTrackDynamicFunctionUnloads()
+FORCEINLINE BOOL CORProfilerTrackDynamicFunctionUnloads()
 {
     CONTRACTL
     {
@@ -2229,7 +2220,7 @@ inline BOOL CORProfilerTrackDynamicFunctionUnloads()
         (&g_profControlBlock)->globalEventMask.IsEventMaskHighSet(COR_PRF_HIGH_MONITOR_DYNAMIC_FUNCTION_UNLOADS));
 }
 
-inline BOOL CORProfilerDisableTieredCompilation()
+FORCEINLINE BOOL CORProfilerDisableTieredCompilation()
 {
     CONTRACTL
     {
@@ -2244,7 +2235,7 @@ inline BOOL CORProfilerDisableTieredCompilation()
          (&g_profControlBlock)->globalEventMask.IsEventMaskHighSet(COR_PRF_HIGH_DISABLE_TIERED_COMPILATION));
 }
 
-inline BOOL CORProfilerTrackBasicGC()
+FORCEINLINE BOOL CORProfilerTrackBasicGC()
 {
     CONTRACTL
     {
@@ -2258,7 +2249,7 @@ inline BOOL CORProfilerTrackBasicGC()
          (&g_profControlBlock)->globalEventMask.IsEventMaskHighSet(COR_PRF_HIGH_BASIC_GC));
 }
 
-inline BOOL CORProfilerTrackGCMovedObjects()
+FORCEINLINE BOOL CORProfilerTrackGCMovedObjects()
 {
     CONTRACTL
     {
@@ -2272,7 +2263,7 @@ inline BOOL CORProfilerTrackGCMovedObjects()
          (&g_profControlBlock)->globalEventMask.IsEventMaskHighSet(COR_PRF_HIGH_MONITOR_GC_MOVED_OBJECTS));
 }
 
-inline BOOL CORProfilerTrackEventPipe()
+FORCEINLINE BOOL CORProfilerTrackEventPipe()
 {
     CONTRACTL
     {
