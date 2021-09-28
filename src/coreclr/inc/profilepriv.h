@@ -109,15 +109,9 @@ public:
     
     EventMask eventMask;
 
-    //---------------------------------------------------------------
-    // dwProfilerEvacuationCounter keeps track of how many profiler
-    // callback calls remain on the stack
-    //---------------------------------------------------------------
-    // Why volatile?
-    // See code:ProfilingAPIUtility::InitializeProfiling#LoadUnloadCallbackSynchronization.
-    Volatile<DWORD> dwProfilerEvacuationCounter;
-
     Volatile<BOOL> inUse;
+
+    DWORD slot;
 
     // Reset those variables that is only for the current attach session
     void ResetPerSessionStatus();
@@ -152,17 +146,8 @@ private:
     ProfilerInfo *m_pProfilerInfo;
 
 public:
-    EvacuationCounterHolder(ProfilerInfo *pProfilerInfo) :
-        m_pProfilerInfo(pProfilerInfo)
-    {
-        _ASSERTE(m_pProfilerInfo != NULL);
-        InterlockedIncrement((LONG *)(m_pProfilerInfo->dwProfilerEvacuationCounter.GetPointer()));
-    }
-
-    ~EvacuationCounterHolder()
-    {
-        InterlockedDecrement((LONG *)(m_pProfilerInfo->dwProfilerEvacuationCounter.GetPointer()));
-    }
+    EvacuationCounterHolder(ProfilerInfo *pProfilerInfo);
+    ~EvacuationCounterHolder();
 };
 
 struct StoredProfilerNode
