@@ -1169,7 +1169,7 @@ public:
     bool IsVersionable()
     {
         WRAPPER_NO_CONTRACT;
-        return IsEligibleForTieredCompilation() || IsEligibleForReJIT();
+        return (IsEligibleForTieredCompilation() || IsEligibleForReJIT()) && !CORDebuggerAttached();
     }
 
     // True iff all calls to the method should funnel through a Precode which can be updated to point to the current method
