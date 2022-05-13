@@ -62,6 +62,37 @@ stack_walk_callback (
 	return SWA_CONTINUE;
 }
 
+bool cheap_walk_stack (ep_rt_thread_handle_t thread,
+	EventPipeStackContents *stack_contents)
+{
+	// TODO: assumes thread is the current thread
+
+	CONTEXT currentContext;
+	RTLCaptureContext(&currentContext);
+
+    PCODE           uControlPc = GetIP(&currentContext);
+    UINT_PTR            uImageBase;
+	PT_RUNTIME_FUNCTION pFunctionEntry = RtlLookupFunctionEntry(uControlPc, &uImageBase);
+    if (NULL == pFunctionEntry)
+    {
+        return NULL;
+    }
+
+    UINT64              EstablisherFrame;
+    PVOID               HandlerData;
+    RtlVirtualUnwind(NULL,
+                     uImageBase,
+                     uControlPc,
+                     pFunctionEntry,
+                     pContext,
+                     &HandlerData,
+                     &EstablisherFrame,
+                     pContextPointers);
+
+    uControlPc = GetIP(pContext);
+    return uControlPc;
+}
+
 bool
 ep_rt_coreclr_walk_managed_stack_for_thread (
 	ep_rt_thread_handle_t thread,
@@ -71,22 +102,24 @@ ep_rt_coreclr_walk_managed_stack_for_thread (
 	EP_ASSERT (thread != NULL);
 	EP_ASSERT (stack_contents != NULL);
 
-	// Calling into StackWalkFrames in preemptive mode violates the host contract,
-	// but this contract is not used on CoreCLR.
-	CONTRACT_VIOLATION (HostViolation);
+	return cheap_walk_stack(thread, stack_contents);
 
-	// Before we call into StackWalkFrames we need to mark GC_ON_TRANSITIONS as FALSE
-	// because under GCStress runs (GCStress=0x3), a GC will be triggered for every transition,
-	// which will cause the GC to try to walk the stack while we are in the middle of walking the stack.
-	bool gc_on_transitions = GC_ON_TRANSITIONS (FALSE);
+	// // Calling into StackWalkFrames in preemptive mode violates the host contract,
+	// // but this contract is not used on CoreCLR.
+	// CONTRACT_VIOLATION (HostViolation);
 
-	StackWalkAction result = thread->StackWalkFrames (
-		(PSTACKWALKFRAMESCALLBACK)stack_walk_callback,
-		stack_contents,
-		ALLOW_ASYNC_STACK_WALK | FUNCTIONSONLY | HANDLESKIPPEDFRAMES | ALLOW_INVALID_OBJECTS);
+	// // Before we call into StackWalkFrames we need to mark GC_ON_TRANSITIONS as FALSE
+	// // because under GCStress runs (GCStress=0x3), a GC will be triggered for every transition,
+	// // which will cause the GC to try to walk the stack while we are in the middle of walking the stack.
+	// bool gc_on_transitions = GC_ON_TRANSITIONS (FALSE);
 
-	GC_ON_TRANSITIONS (gc_on_transitions);
-	return ((result == SWA_DONE) || (result == SWA_CONTINUE));
+	// StackWalkAction result = thread->StackWalkFrames (
+	// 	(PSTACKWALKFRAMESCALLBACK)stack_walk_callback,
+	// 	stack_contents,
+	// 	ALLOW_ASYNC_STACK_WALK | FUNCTIONSONLY | HANDLESKIPPEDFRAMES | ALLOW_INVALID_OBJECTS);
+
+	// GC_ON_TRANSITIONS (gc_on_transitions);
+	// return ((result == SWA_DONE) || (result == SWA_CONTINUE));
 }
 
 // The thread store lock must already be held by the thread before this function
