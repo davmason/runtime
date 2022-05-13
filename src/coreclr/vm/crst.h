@@ -395,21 +395,68 @@ public:
     // This just exists to convert legacy OS Critical Section patterns over to holders.
     typedef DacHolder<CrstBase *, CrstBase::ReleaseLock, CrstBase::AcquireLock, 0, CompareDefault> UnsafeCrstInverseHolder;
 
-    class CrstAndForbidSuspendForDebuggerHolder
+    class CrstWithThreadContextForDebugger
     {
     private:
         CrstBase *m_pCrst;
         Thread *m_pThreadForExitingForbidRegion;
 
     public:
+        CrstWithThreadContextForDebugger(CrstBase *pCrst);
+
+        DEBUG_NOINLINE static void AcquireLockDebuggerForbidSuspend(CrstWithThreadContextForDebugger *pCrst);
+        DEBUG_NOINLINE static void ReleaseLockDebuggerForbidSuspend(CrstWithThreadContextForDebugger *pCrst);
+    };
+
+    class CrstAndForbidSuspendForDebuggerHolder
+    {
+    private:
+        CrstWithThreadContextForDebugger m_crstWithThreadContext;
+
+    public:
+
         CrstAndForbidSuspendForDebuggerHolder(CrstBase *pCrst);
         ~CrstAndForbidSuspendForDebuggerHolder();
+    };
+
+    class CrstAndForbidSuspendForDebuggerHolderWithState
+    {
+    private:
+        CrstWithThreadContextForDebugger m_crstWithThreadContext;
+        DacHolder<CrstWithThreadContextForDebugger *, 
+                  CrstWithThreadContextForDebugger::AcquireLockDebuggerForbidSuspend,
+                  CrstWithThreadContextForDebugger::ReleaseLockDebuggerForbidSuspend,
+                  0,
+                  CompareDefault> m_holder;
+
+    public:
+        inline CrstAndForbidSuspendForDebuggerHolderWithState(CrstBase *pCrst, BOOL fShouldAcquire)
+            : m_crstWithThreadContext(pCrst), m_holder(&m_crstWithThreadContext, fShouldAcquire)
+        {
+
+        }
+
+        inline void Acquire()
+        {
+            m_holder.Acquire();
+        }
+
+        inline void Release()
+        {
+            m_holder.Release();
+        }
+
+        inline void SuppressRelease()
+        {
+            m_holder.SuppressRelease();
+        }
     };
 };
 
 typedef CrstBase::CrstHolder CrstHolder;
 typedef CrstBase::CrstHolderWithState CrstHolderWithState;
 typedef CrstBase::CrstAndForbidSuspendForDebuggerHolder CrstAndForbidSuspendForDebuggerHolder;
+typedef CrstBase::CrstAndForbidSuspendForDebuggerHolderWithState CrstAndForbidSuspendForDebuggerHolderWithState;
 
 // The CRST.
 class Crst : public CrstBase

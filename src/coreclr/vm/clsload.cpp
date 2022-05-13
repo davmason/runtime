@@ -3384,7 +3384,7 @@ ClassLoader::LoadTypeHandleForTypeKey_Body(
     }
 
     ReleaseHolder<PendingTypeLoadEntry> pLoadingEntry;
-    CrstHolderWithState unresolvedClassLockHolder(&m_UnresolvedClassLock, false);
+    CrstAndForbidSuspendForDebuggerHolderWithState unresolvedClassLockHolder(&m_UnresolvedClassLock, false);
 
 retry:
     unresolvedClassLockHolder.Acquire();

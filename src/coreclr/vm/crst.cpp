@@ -770,29 +770,22 @@ BOOL CrstBase::IsSafeToTake()
 
 #endif // _DEBUG
 
-CrstBase::CrstAndForbidSuspendForDebuggerHolder::CrstAndForbidSuspendForDebuggerHolder(CrstBase *pCrst)
-    : m_pCrst(pCrst), m_pThreadForExitingForbidRegion(nullptr)
+void CrstBase::CrstWithThreadContextForDebugger::AcquireLockDebuggerForbidSuspend(CrstWithThreadContextForDebugger *pDebugCrst)
 {
-    CONTRACTL
-    {
-        NOTHROW;
-        GC_TRIGGERS;
-        MODE_PREEMPTIVE;
-    }
-    CONTRACTL_END;
+    WRAPPER_NO_CONTRACT;
 
-    if (pCrst == nullptr)
+    if (pDebugCrst == nullptr)
     {
         return;
     }
 
     // Reentrant locks are currently not supported
-    _ASSERTE((pCrst->m_dwFlags & CRST_REENTRANCY) == 0);
+    _ASSERTE((pDebugCrst->m_pCrst->m_dwFlags & CRST_REENTRANCY) == 0);
 
     Thread *pThread = GetThreadNULLOk();
     if (pThread == nullptr || pThread->IsInForbidSuspendForDebuggerRegion())
     {
-        AcquireLock(pCrst);
+        AcquireLock(pDebugCrst->m_pCrst);
         return;
     }
 
@@ -813,23 +806,59 @@ CrstBase::CrstAndForbidSuspendForDebuggerHolder::CrstAndForbidSuspendForDebugger
         // prerequisite for entering a lock along with entering a forbid-suspend-for-debugger region, that the lock is not held
         // for too long such that the thread can suspend for the debugger in reasonable time.
         pThread->EnterForbidSuspendForDebuggerRegion();
-        AcquireLock(pCrst); // implicit full memory barrier on all supported platforms
+        AcquireLock(pDebugCrst->m_pCrst); // implicit full memory barrier on all supported platforms
 
         // This can be an opportunistic check (instead of a volatile load), because if the GC mode change below does not suspend
         // for the debugger (which is also possible with a volatile load), it will just loop around and try again if necessary
         if (!pThread->HasThreadStateOpportunistic(Thread::TS_DebugSuspendPending))
         {
-            m_pThreadForExitingForbidRegion = pThread;
+            pDebugCrst->m_pThreadForExitingForbidRegion = pThread;
             return;
         }
 
         // Cannot enter the forbid region when a suspend for the debugger is pending because there are likely to be subsequent
         // changes to the GC mode inside the lock, and this thread needs to suspend for the debugger in reasonable time. Exit
         // the lock and pulse the GC mode to suspend for the debugger.
-        ReleaseLock(pCrst);
+        ReleaseLock(pDebugCrst->m_pCrst);
         pThread->ExitForbidSuspendForDebuggerRegion();
         GCX_COOP();
     }
+}
+
+void CrstBase::CrstWithThreadContextForDebugger::ReleaseLockDebuggerForbidSuspend(CrstWithThreadContextForDebugger *pDebugCrst)
+{
+    WRAPPER_NO_CONTRACT;
+
+    if (pDebugCrst == nullptr)
+    {
+        return;
+    }
+
+    ReleaseLock(pDebugCrst->m_pCrst);
+    if (pDebugCrst->m_pThreadForExitingForbidRegion != nullptr)
+    {
+        pDebugCrst->m_pThreadForExitingForbidRegion->ExitForbidSuspendForDebuggerRegion();
+    }
+}
+
+CrstBase::CrstWithThreadContextForDebugger::CrstWithThreadContextForDebugger(CrstBase *pCrst)
+    : m_pCrst(pCrst), m_pThreadForExitingForbidRegion(nullptr)
+{
+
+}
+
+CrstBase::CrstAndForbidSuspendForDebuggerHolder::CrstAndForbidSuspendForDebuggerHolder(CrstBase *pCrst)
+    : m_crstWithThreadContext(pCrst)
+{
+    CONTRACTL
+    {
+        NOTHROW;
+        GC_TRIGGERS;
+        MODE_PREEMPTIVE;
+    }
+    CONTRACTL_END;
+
+    CrstWithThreadContextForDebugger::AcquireLockDebuggerForbidSuspend(&m_crstWithThreadContext);
 }
 
 CrstBase::CrstAndForbidSuspendForDebuggerHolder::~CrstAndForbidSuspendForDebuggerHolder()
@@ -842,16 +871,7 @@ CrstBase::CrstAndForbidSuspendForDebuggerHolder::~CrstAndForbidSuspendForDebugge
     }
     CONTRACTL_END;
 
-    if (m_pCrst == nullptr)
-    {
-        return;
-    }
-
-    ReleaseLock(m_pCrst);
-    if (m_pThreadForExitingForbidRegion != nullptr)
-    {
-        m_pThreadForExitingForbidRegion->ExitForbidSuspendForDebuggerRegion();
-    }
+    CrstWithThreadContextForDebugger::ReleaseLockDebuggerForbidSuspend(&m_crstWithThreadContext);
 }
 
 #endif // !DACCESS_COMPILE

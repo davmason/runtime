@@ -856,7 +856,7 @@ OBJECTREF* BaseDomain::AllocateObjRefPtrsInLargeTable(int nRequested, OBJECTREF*
 
     // Enter preemptive state, take the lock and go back to cooperative mode.
     {
-        CrstHolder ch(&m_PinnedHeapHandleTableCrst);
+        CrstAndForbidSuspendForDebuggerHolder ch(&m_PinnedHeapHandleTableCrst);
         GCX_COOP();
 
         if (ppLazyAllocate && *ppLazyAllocate)
