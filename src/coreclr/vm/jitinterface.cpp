@@ -10757,7 +10757,8 @@ PCODE CEEJitInfo::getHelperFtnStatic(CorInfoHelpFunc ftnNum)
         pfnHelper = hlpDynamicFuncTable[((size_t)pfnHelper - 1)].pfnHelper;
     }
 
-    _ASSERTE(pfnHelper != NULL);
+    // TODO: why?
+    // _ASSERTE(pfnHelper != NULL);
 
     return GetEEFuncEntryPoint(pfnHelper);
 }

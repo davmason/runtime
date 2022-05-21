@@ -419,8 +419,9 @@ COR_IL_MAP* ProfilerFunctionControl::GetInstrumentedMapEntries()
 
 #ifndef DACCESS_COMPILE
 NativeImageInliningIterator::NativeImageInliningIterator() :
-        m_pModule(NULL),
-        m_pInlinee(NULL),
+        m_pInlinerModule(NULL),
+        m_pInlineeModule(NULL),
+        m_mdInlinee(mdTokenNil),
         m_dynamicBuffer(NULL),
         m_dynamicBufferSize(0),
         m_dynamicAvailable(0),
@@ -429,22 +430,22 @@ NativeImageInliningIterator::NativeImageInliningIterator() :
 
 }
 
-HRESULT NativeImageInliningIterator::Reset(Module *pModule, MethodDesc *pInlinee)
+HRESULT NativeImageInliningIterator::Reset(Module *pInlinerModule, Module *pInlineeModule, mdMethodDef mdInlinee)
 {
-    _ASSERTE(pModule != NULL);
-    _ASSERTE(pInlinee != NULL);
+    _ASSERTE(pInlinerModule != NULL);
+    _ASSERTE(pInlineeModule != NULL);
+    _ASSERTE(mdInlinee != mdMethodDefNil);
 
-    m_pModule = pModule;
-    m_pInlinee = pInlinee;
+    m_pInlinerModule = pInlinerModule;
+    m_pInlineeModule = pInlineeModule;
+    m_mdInlinee = mdInlinee;
 
     HRESULT hr = S_OK;
     EX_TRY
     {
         // Trying to use the existing buffer
         BOOL incompleteData;
-        Module *inlineeModule = m_pInlinee->GetModule();
-        mdMethodDef mdInlinee = m_pInlinee->GetMemberDef();
-        COUNT_T methodsAvailable = m_pModule->GetReadyToRunInliners(inlineeModule, mdInlinee, m_dynamicBufferSize, m_dynamicBuffer, &incompleteData);
+        COUNT_T methodsAvailable = m_pInlinerModule->GetReadyToRunInliners(m_pInlineeModule, m_mdInlinee, m_dynamicBufferSize, m_dynamicBuffer, &incompleteData);
 
         // If the existing buffer is not large enough, reallocate.
         if (methodsAvailable > m_dynamicBufferSize)
@@ -453,7 +454,7 @@ HRESULT NativeImageInliningIterator::Reset(Module *pModule, MethodDesc *pInlinee
             m_dynamicBuffer = new MethodInModule[newSize];
             m_dynamicBufferSize = newSize;
 
-            methodsAvailable = m_pModule->GetReadyToRunInliners(inlineeModule, mdInlinee, m_dynamicBufferSize, m_dynamicBuffer, &incompleteData);
+            methodsAvailable = m_pInlinerModule->GetReadyToRunInliners(m_pInlineeModule, m_mdInlinee, m_dynamicBufferSize, m_dynamicBuffer, &incompleteData);
             _ASSERTE(methodsAvailable <= m_dynamicBufferSize);
         }
 
@@ -484,19 +485,26 @@ BOOL NativeImageInliningIterator::Next()
     return m_currentPos < m_dynamicAvailable;
 }
 
-MethodDesc *NativeImageInliningIterator::GetMethodDesc()
+Module *NativeImageInliningIterator::GetCurrentModule()
 {
-    // this evaluates true when m_currentPos == s_failurePos or m_currentPos == (COUNT_T)-1
-    // m_currentPos is an unsigned type
     if (m_currentPos >= m_dynamicAvailable)
     {
         return NULL;
     }
 
     MethodInModule mm = m_dynamicBuffer[m_currentPos];
-    Module *pModule = mm.m_module;
-    mdMethodDef mdInliner = mm.m_methodDef;
-    return pModule->LookupMethodDef(mdInliner);
+    return mm.m_module;
+}
+
+mdMethodDef NativeImageInliningIterator::GetCurrentMethodDef()
+{
+    if (m_currentPos >= m_dynamicAvailable)
+    {
+        return mdMethodDefNil;
+    }
+
+    MethodInModule mm = m_dynamicBuffer[m_currentPos];
+    return mm.m_methodDef;
 }
 
 //---------------------------------------------------------------------------------------
@@ -571,48 +579,9 @@ HRESULT ReJitManager::UpdateActiveILVersions(
     for (ULONG i = 0; i < cFunctions; i++)
     {
         Module * pModule = reinterpret_cast< Module * >(rgModuleIDs[i]);
-        if (pModule == NULL || TypeFromToken(rgMethodDefs[i]) != mdtMethodDef)
+        if (!ShouldReJITMethod(pModule, rgMethodDefs[i], TRUE /*Report Errors*/))
         {
-            ReportReJITError(pModule, rgMethodDefs[i], NULL, E_INVALIDARG);
             continue;
-        }
-
-        if (pModule->IsBeingUnloaded())
-        {
-            ReportReJITError(pModule, rgMethodDefs[i], NULL, CORPROF_E_DATAINCOMPLETE);
-            continue;
-        }
-
-        if (pModule->IsReflection())
-        {
-            ReportReJITError(pModule, rgMethodDefs[i], NULL, CORPROF_E_MODULE_IS_DYNAMIC);
-            continue;
-        }
-
-        if (!pModule->GetMDImport()->IsValidToken(rgMethodDefs[i]))
-        {
-            ReportReJITError(pModule, rgMethodDefs[i], NULL, E_INVALIDARG);
-            continue;
-        }
-
-        MethodDesc * pMD = pModule->LookupMethodDef(rgMethodDefs[i]);
-
-        if (pMD != NULL)
-        {
-            _ASSERTE(!pMD->IsNoMetadata());
-
-            // Weird, non-user functions can't be rejitted
-            if (!pMD->IsIL())
-            {
-                // Intentionally not reporting an error in this case, to be consistent
-                // with the pre-rejit case, as we have no opportunity to report an error
-                // in a pre-rejit request for a non-IL method, since the rejit manager
-                // never gets a call from the prestub worker for non-IL methods.  Thus,
-                // since pre-rejit requests silently ignore rejit requests for non-IL
-                // methods, regular rejit requests will also silently ignore rejit requests for
-                // non-IL methods to be consistent.
-                continue;
-            }
         }
 
         hr = UpdateActiveILVersion(&mgrToCodeActivationBatch, pModule, rgMethodDefs[i], fIsRevert, static_cast<COR_PRF_REJIT_FLAGS>(flags | COR_PRF_REJIT_INLINING_CALLBACKS));
@@ -623,13 +592,13 @@ HRESULT ReJitManager::UpdateActiveILVersions(
 
         if ((flags & COR_PRF_REJIT_BLOCK_INLINING) == COR_PRF_REJIT_BLOCK_INLINING)
         {
-            hr = UpdateNativeInlinerActiveILVersions(&mgrToCodeActivationBatch, pMD, fIsRevert, flags);
+            hr = UpdateNativeInlinerActiveILVersions(&mgrToCodeActivationBatch, pModule, rgMethodDefs[i], fIsRevert, flags);
             if (FAILED(hr))
             {
                 return hr;
             }
 
-            hr = UpdateJitInlinerActiveILVersions(&mgrToCodeActivationBatch, pMD, fIsRevert, flags);
+            hr = UpdateJitInlinerActiveILVersions(&mgrToCodeActivationBatch, pModule, rgMethodDefs[i], fIsRevert, flags);
             if (FAILED(hr))
             {
                 return hr;
@@ -780,7 +749,8 @@ HRESULT ReJitManager::UpdateActiveILVersion(
 // static
 HRESULT ReJitManager::UpdateNativeInlinerActiveILVersions(
     SHash<CodeActivationBatchTraits>   *pMgrToCodeActivationBatch,
-    MethodDesc                         *pInlinee,
+    Module                              *pInlineeModule,
+    mdMethodDef                         mdInlinee,
     BOOL                                fIsRevert,
     COR_PRF_REJIT_FLAGS                 flags)
 {
@@ -794,7 +764,8 @@ HRESULT ReJitManager::UpdateNativeInlinerActiveILVersions(
     CONTRACTL_END;
 
     _ASSERTE(pMgrToCodeActivationBatch != NULL);
-    _ASSERTE(pInlinee != NULL);
+    _ASSERTE(pInlineeModule != NULL);
+    _ASSERTE(mdInlinee != mdMethodDefNil);
 
     HRESULT hr = S_OK;
 
@@ -812,12 +783,18 @@ HRESULT ReJitManager::UpdateNativeInlinerActiveILVersions(
         Module * pModule = pDomainAssembly->GetModule();
         if (pModule->HasReadyToRunInlineTrackingMap())
         {
-            inlinerIter.Reset(pModule, pInlinee);
+            inlinerIter.Reset(pModule, pInlineeModule, mdInlinee);
 
             MethodDesc *pInliner = NULL;
             while (inlinerIter.Next())
             {
-                pInliner = inlinerIter.GetMethodDesc();
+                Module *currentModule = inlinerIter.GetCurrentModule();
+                mdMethodDef currentMethodDef = inlinerIter.GetCurrentMethodDef();
+                _ASSERTE(currentModule != NULL);
+                _ASSERTE(currentMethodDef != mdMethodDefNil);
+
+                MethodDesc *pInliner = currentModule->LookupMethodDef(currentMethodDef);
+                if (pInliner != NULL)
                 {
                     CodeVersionManager *pCodeVersionManager = pModule->GetCodeVersionManager();
                     CodeVersionManager::LockHolder codeVersioningLockHolder;
@@ -829,8 +806,18 @@ HRESULT ReJitManager::UpdateNativeInlinerActiveILVersions(
                         continue;
                     }
                 }
+                else
+                {
+                    _ASSERTE(!"Saw NULL MD from NativeImageInliningIterator::LookupMethodDef");
+                    continue;
+                }
 
-                hr = UpdateActiveILVersion(pMgrToCodeActivationBatch, pInliner->GetModule(), pInliner->GetMemberDef(), fIsRevert, flags);
+                if (!ShouldReJITMethod(currentModule, currentMethodDef, FALSE /*Report Errors*/))
+                {
+                    continue;
+                }
+
+                hr = UpdateActiveILVersion(pMgrToCodeActivationBatch, currentModule, currentMethodDef, fIsRevert, flags);
                 if (FAILED(hr))
                 {
                     ReportReJITError(pInliner->GetModule(), pInliner->GetMemberDef(), NULL, hr);
@@ -845,7 +832,8 @@ HRESULT ReJitManager::UpdateNativeInlinerActiveILVersions(
 // static
 HRESULT ReJitManager::UpdateJitInlinerActiveILVersions(
     SHash<CodeActivationBatchTraits>   *pMgrToCodeActivationBatch,
-    MethodDesc                         *pInlinee,
+    Module                              *pInlineeModule,
+    mdMethodDef                         mdInlinee,
     BOOL                                fIsRevert,
     COR_PRF_REJIT_FLAGS                 flags)
 {
@@ -859,12 +847,12 @@ HRESULT ReJitManager::UpdateJitInlinerActiveILVersions(
     CONTRACTL_END;
 
     _ASSERTE(pMgrToCodeActivationBatch != NULL);
-    _ASSERTE(pInlinee != NULL);
+    _ASSERTE(pInlineeModule != NULL);
+    _ASSERTE(mdInlinee != mdMethodDefNil);
 
     HRESULT hr = S_OK;
 
-    Module *pModule = pInlinee->GetModule();
-    if (pModule->HasJitInlineTrackingMap())
+    if (pInlineeModule->HasJitInlineTrackingMap())
     {
         // JITInlineTrackingMap::VisitInliners wants to be in cooperative mode,
         // but UpdateActiveILVersion wants to be in preemptive mode. Rather than do
@@ -891,7 +879,14 @@ HRESULT ReJitManager::UpdateJitInlinerActiveILVersions(
             return true;
         };
 
-        JITInlineTrackingMap *pMap = pModule->GetJitInlineTrackingMap();
+        JITInlineTrackingMap *pMap = pInlineeModule->GetJitInlineTrackingMap();
+        MethodDesc *pInlinee = pInlineeModule->LookupMethodDef(mdInlinee);
+        if (pInlinee == NULL)
+        {
+            // Since we're looking at jitted methods, can't be inlined if it's not loaded
+            return S_OK;
+        }
+
         pMap->VisitInliners(pInlinee, lambda);
         if (FAILED(hr))
         {
@@ -905,10 +900,14 @@ HRESULT ReJitManager::UpdateJitInlinerActiveILVersions(
             {
                 Module *inlinerModule = (*it)->GetModule();
                 mdMethodDef inlinerMethodDef = (*it)->GetMemberDef();
-                hr = UpdateActiveILVersion(pMgrToCodeActivationBatch, inlinerModule, inlinerMethodDef, fIsRevert, flags);
-                if (FAILED(hr))
+
+                if (ShouldReJITMethod(inlinerModule, inlinerMethodDef, FALSE /*Report Errors*/))
                 {
-                    ReportReJITError(inlinerModule, inlinerMethodDef, NULL, hr);
+                    hr = UpdateActiveILVersion(pMgrToCodeActivationBatch, inlinerModule, inlinerMethodDef, fIsRevert, flags);
+                    if (FAILED(hr))
+                    {
+                        ReportReJITError(inlinerModule, inlinerMethodDef, NULL, hr);
+                    }
                 }
             }
         }
@@ -1168,6 +1167,70 @@ HRESULT ReJitManager::ConfigureILCodeVersion(ILCodeVersion ilCodeVersion)
     }
 
     return S_OK;
+}
+
+BOOL ReJitManager::ShouldReJITMethod(Module *pModule, mdMethodDef mdMethod, BOOL fReportErrors)
+{
+    if (pModule == NULL || TypeFromToken(mdMethod) != mdtMethodDef)
+    {
+        if (fReportErrors)
+        {
+            ReportReJITError(pModule, mdMethod, NULL, E_INVALIDARG);
+        }
+
+        return FALSE;
+    }
+
+    if (pModule->IsBeingUnloaded())
+    {
+        if (fReportErrors)
+        {
+            ReportReJITError(pModule, mdMethod, NULL, CORPROF_E_DATAINCOMPLETE);
+        }
+
+        return FALSE;
+    }
+
+    if (pModule->IsReflection())
+    {
+        if (fReportErrors)
+        {
+            ReportReJITError(pModule, mdMethod, NULL, CORPROF_E_MODULE_IS_DYNAMIC);
+        }
+
+        return FALSE;
+    }
+
+    if (!pModule->GetMDImport()->IsValidToken(mdMethod))
+    {
+        if (fReportErrors)
+        {
+            ReportReJITError(pModule, mdMethod, NULL, E_INVALIDARG);
+        }
+
+        return FALSE;
+    }
+
+    MethodDesc * pMD = pModule->LookupMethodDef(mdMethod);
+    if (pMD != NULL)
+    {
+        _ASSERTE(!pMD->IsNoMetadata());
+
+        // Weird, non-user functions can't be rejitted
+        if (!pMD->IsIL())
+        {
+            // Intentionally not reporting an error in this case, to be consistent
+            // with the pre-rejit case, as we have no opportunity to report an error
+            // in a pre-rejit request for a non-IL method, since the rejit manager
+            // never gets a call from the prestub worker for non-IL methods.  Thus,
+            // since pre-rejit requests silently ignore rejit requests for non-IL
+            // methods, regular rejit requests will also silently ignore rejit requests for
+            // non-IL methods to be consistent.
+            return FALSE;
+        }
+    }
+
+    return TRUE;
 }
 
 #endif // DACCESS_COMPILE

@@ -73,7 +73,8 @@ HRESULT ReJITProfiler::Initialize(IUnknown* pICorProfilerInfoUnk)
 
     DWORD eventMaskLow = COR_PRF_ENABLE_REJIT |
                          COR_PRF_MONITOR_JIT_COMPILATION |
-                         COR_PRF_MONITOR_CACHE_SEARCHES;
+                         COR_PRF_MONITOR_CACHE_SEARCHES |
+                         COR_PRF_MONITOR_MODULE_LOADS;
     DWORD eventMaskHigh = 0x0;
     if (FAILED(hr = pCorProfilerInfo->SetEventMask2(eventMaskLow, eventMaskHigh)))
     {
@@ -304,7 +305,7 @@ HRESULT STDMETHODCALLTYPE ReJITProfiler::ReJITCompilationStarted(FunctionID func
 {
     SHUTDOWNGUARD();
 
-    INFO(L"Saw a ReJIT for function " << GetFunctionIDName(functionId));
+    INFO(L"Saw a ReJIT for function " << GetFunctionIDName(functionId) << L" from module " << GetModuleIDName(GetModuleIDForFunction(functionId)));
     _rejits++;
     return S_OK;
 }
@@ -312,6 +313,11 @@ HRESULT STDMETHODCALLTYPE ReJITProfiler::ReJITCompilationStarted(FunctionID func
 HRESULT STDMETHODCALLTYPE ReJITProfiler::GetReJITParameters(ModuleID moduleId, mdMethodDef methodId, ICorProfilerFunctionControl* pFunctionControl)
 {
     SHUTDOWNGUARD();
+
+    if (moduleId != _targetModuleId || methodId != _targetMethodDef)
+    {
+        return S_OK;
+    }
 
     INFO(L"Starting to build IL for method " << GetFunctionIDName(GetFunctionIDFromToken(moduleId, methodId)));
     COMPtrHolder<IUnknown> pUnk;
@@ -417,6 +423,69 @@ HRESULT STDMETHODCALLTYPE ReJITProfiler::ReJITError(ModuleID moduleId, mdMethodD
     return S_OK;
 }
 
+HRESULT STDMETHODCALLTYPE ReJITProfiler::ModuleLoadFinished(ModuleID moduleId, HRESULT hrStatus)
+{
+    SHUTDOWNGUARD();
+
+    // String moduleName = GetModuleIDName(moduleId);
+    // if (EndsWith(moduleName, L"System.Private.CoreLib.dll"))
+    // {
+    //     printf("Skipping corelib\n");
+    //     return S_OK;
+    // }
+
+    COMPtrHolder<IUnknown> pUnk;
+    HRESULT hr = _profInfo10->GetModuleMetaData(moduleId, ofWrite, IID_IMetaDataEmit2, &pUnk);
+    if (FAILED(hr))
+    {
+        _failures++;
+        FAIL(L"GetModuleMetaData failed for IID_IMetaDataEmit2 in ModuleID '" << std::hex << moduleId);
+        return hr;
+    }
+
+    COMPtrHolder<IMetaDataImport2> pMetaImport;
+    hr = pUnk->QueryInterface(IID_IMetaDataImport2, (void **)&pMetaImport);
+    if (FAILED(hr))
+    {
+        _failures++;
+        FAIL(L"Unable to QI for IMetaDataImport2");
+        return hr;
+    }
+
+    vector<ModuleID> modIDs;
+    vector<mdMethodDef> methodDefs;
+
+    mdTypeDef typeDef;
+    HCORENUM hTypeDefEnum = NULL;
+    ULONG numReturned = 0;
+    while (pMetaImport->EnumTypeDefs(&hTypeDefEnum, &typeDef, 1, &numReturned) == S_OK)
+    {
+        HCORENUM hMethodDefEnum = NULL;
+        mdMethodDef methodDef;
+        ULONG numMDReturned;
+        while (pMetaImport->EnumMethods(&hMethodDefEnum, typeDef, &methodDef, 1, &numMDReturned) == S_OK)
+        {
+            modIDs.push_back(moduleId);
+            methodDefs.push_back(methodDef);
+        }
+    }
+
+    if (methodDefs.size() > 0)
+    {
+        hr = _profInfo10->RequestReJITWithInliners(COR_PRF_REJIT_BLOCK_INLINING | COR_PRF_REJIT_INLINING_CALLBACKS,
+                                                   (ULONG)methodDefs.size(),
+                                                   &modIDs[0],
+                                                   &methodDefs[0]);
+        if (FAILED(hr))
+        {
+            _failures++;
+            FAIL(L"RequestReJITWithInliners failed with hr= '" << std::hex << hr);
+            return hr;
+        }
+    }
+
+    return S_OK;
+}
 
 void ReJITProfiler::AddInlining(FunctionID inliner, FunctionID inlinee)
 {

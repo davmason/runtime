@@ -75,13 +75,15 @@ class NativeImageInliningIterator
 public:
     NativeImageInliningIterator();
 
-    HRESULT Reset(Module *pInlineeModule, MethodDesc *pInlinee);
+    HRESULT Reset(Module *pInlinerModule, Module *pInlineeModule, mdMethodDef mdInlinee);
     BOOL Next();
-    MethodDesc *GetMethodDesc();
+    Module *GetCurrentModule();
+    mdMethodDef GetCurrentMethodDef();
 
 private:
-    Module *m_pModule;
-    MethodDesc *m_pInlinee;
+    Module *m_pInlinerModule;
+    Module *m_pInlineeModule;
+    mdMethodDef m_mdInlinee;
     NewArrayHolder<MethodInModule> m_dynamicBuffer;
     COUNT_T m_dynamicBufferSize;
     COUNT_T m_dynamicAvailable;
@@ -189,13 +191,15 @@ private:
 
     static HRESULT UpdateNativeInlinerActiveILVersions(
         SHash<CodeActivationBatchTraits> *pMgrToCodeActivationBatch,
-        MethodDesc         *pInlinee,
+        Module *            pModule,
+        mdMethodDef         methodDef,
         BOOL                fIsRevert,
         COR_PRF_REJIT_FLAGS flags);
 
     static HRESULT UpdateJitInlinerActiveILVersions(
         SHash<CodeActivationBatchTraits> *pMgrToCodeActivationBatch,
-        MethodDesc         *pInlinee,
+        Module *            pModule,
+        mdMethodDef         methodDef,
         BOOL                fIsRevert,
         COR_PRF_REJIT_FLAGS flags);
 
@@ -205,6 +209,8 @@ private:
         mdMethodDef         methodDef,
         ILCodeVersion      *pILCodeVersion,
         COR_PRF_REJIT_FLAGS flags);
+
+    static BOOL ShouldReJITMethod(Module *pModule, mdMethodDef mdMethod, BOOL fReportErrors);
 
 #endif // FEATURE_REJIT
 
