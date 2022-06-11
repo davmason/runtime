@@ -171,6 +171,7 @@ struct JitInterfaceCallbacks
     void (* allocMem)(void * thisHandle, CorInfoExceptionClass** ppException, AllocMemArgs* pArgs);
     void (* reserveUnwindInfo)(void * thisHandle, CorInfoExceptionClass** ppException, bool isFunclet, bool isColdCode, uint32_t unwindSize);
     void (* allocUnwindInfo)(void * thisHandle, CorInfoExceptionClass** ppException, uint8_t* pHotCode, uint8_t* pColdCode, uint32_t startOffset, uint32_t endOffset, uint32_t unwindSize, uint8_t* pUnwindBlock, CorJitFuncKind funcKind);
+    void (* publishGCInfo)(void * thisHandle, CorInfoExceptionClass** ppException, uint8_t* destBuffer, void* writer1, void* writer2);
     void* (* allocGCInfo)(void * thisHandle, CorInfoExceptionClass** ppException, size_t size);
     void (* setEHcount)(void * thisHandle, CorInfoExceptionClass** ppException, unsigned cEH);
     void (* setEHinfo)(void * thisHandle, CorInfoExceptionClass** ppException, unsigned EHnumber, const CORINFO_EH_CLAUSE* clause);
@@ -1734,6 +1735,16 @@ public:
 {
     CorInfoExceptionClass* pException = nullptr;
     _callbacks->allocUnwindInfo(_thisHandle, &pException, pHotCode, pColdCode, startOffset, endOffset, unwindSize, pUnwindBlock, funcKind);
+    if (pException != nullptr) throw pException;
+}
+
+    virtual void publishGCInfo(
+          uint8_t* destBuffer,
+          void* writer1,
+          void* writer2)
+{
+    CorInfoExceptionClass* pException = nullptr;
+    _callbacks->publishGCInfo(_thisHandle, &pException, destBuffer, writer1, writer2);
     if (pException != nullptr) throw pException;
 }
 

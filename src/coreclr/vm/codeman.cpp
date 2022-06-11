@@ -3207,6 +3207,25 @@ LoaderHeap *EEJitManager::GetJitMetaHeap(MethodDesc *pMD)
     return pAllocator->GetLowFrequencyHeap();
 }
 
+void EEJitManager::publishGCInfo(BYTE *destBuffer, void *writer1, void *writer2)
+{
+    CONTRACTL {
+        THROWS;
+        GC_NOTRIGGER;
+    } CONTRACTL_END;
+
+    CrstHolder ch(&m_CodeHeapCritSec);
+    BYTE* ptr = destBuffer;
+
+    BitStreamWriter *pInfo1 = (BitStreamWriter *)writer1;
+    pInfo1->CopyTo( ptr );
+    ptr += pInfo1->GetByteCount();
+
+    BitStreamWriter *pInfo2 = (BitStreamWriter *)writer2;
+    pInfo2->CopyTo( ptr );
+    ptr += pInfo2->GetByteCount();
+}
+
 BYTE* EEJitManager::allocGCInfo(CodeHeader* pCodeHeader, DWORD blockSize, size_t * pAllocationSize)
 {
     CONTRACTL {

@@ -1287,6 +1287,15 @@ void interceptor_ICJI::allocUnwindInfo(
     original_ICorJitInfo->allocUnwindInfo(pHotCode, pColdCode, startOffset, endOffset, unwindSize, pUnwindBlock, funcKind);
 }
 
+void interceptor_ICJI::publishGCInfo(
+          uint8_t* destBuffer,
+          void* writer1,
+          void* writer2)
+{
+    mcs->AddCall("publishGCInfo");
+    original_ICorJitInfo->publishGCInfo(destBuffer, writer1, writer2);
+}
+
 void* interceptor_ICJI::allocGCInfo(
           size_t size)
 {

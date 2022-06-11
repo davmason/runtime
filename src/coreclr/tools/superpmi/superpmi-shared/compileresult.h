@@ -125,6 +125,7 @@ public:
     void dmpSetPatchpointInfo(DWORD key, const Agnostic_SetPatchpointInfo& value);
     bool repSetPatchpointInfo(PatchpointInfo** patchpointInfo);
 
+    void recPublishGCInfo(uint8_t* destBuffer, void *writer1, void *writer2);
     void recAllocGCInfo(size_t size, void* retval);
     void recAllocGCInfoCapture();
     void dmpAllocGCInfo(DWORD key, const Agnostic_AllocGCInfo& value);

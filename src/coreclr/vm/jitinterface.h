@@ -623,6 +623,11 @@ public:
             CorJitFuncKind funcKind       /* IN */
             ) override final;
 
+    void publishGCInfo(
+            uint8_t * destBuffer, 
+            void *    writer1,
+            void *    writer2) override final;
+    
     void * allocGCInfo (size_t  size) override final;
 
     void setEHcount (unsigned cEH) override final;

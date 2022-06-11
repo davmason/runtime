@@ -1568,6 +1568,16 @@ void WrapICorJitInfo::allocUnwindInfo(
     API_LEAVE(allocUnwindInfo);
 }
 
+void WrapICorJitInfo::publishGCInfo(
+          uint8_t* destBuffer,
+          void* writer1,
+          void* writer2)
+{
+    API_ENTER(publishGCInfo);
+    wrapHnd->publishGCInfo(destBuffer, writer1, writer2);
+    API_LEAVE(publishGCInfo);
+}
+
 void* WrapICorJitInfo::allocGCInfo(
           size_t size)
 {
