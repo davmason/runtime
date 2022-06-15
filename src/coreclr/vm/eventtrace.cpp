@@ -6655,7 +6655,6 @@ VOID ETW::MethodLog::SendMethodEvent(MethodDesc *pMethodDesc, DWORD dwEventOptio
     // by a TADDR (i.e., w/out thumb bit set on ARM)
     EECodeInfo codeInfo(start);
 
-#ifdef USE_GC_INFO_DECODER
     // We can race with the JIT publishing GCInfo, if it is not published we can skip this method since
     // it is not in use yet.
     GcInfoDecoder gcInfoDecoder(
@@ -6667,7 +6666,6 @@ VOID ETW::MethodLog::SendMethodEvent(MethodDesc *pMethodDesc, DWORD dwEventOptio
     {
         return;
     }
-#endif // USE_GC_INFO_DECODER
 
     // MethodToken ==> MethodRegionInfo
     IJitManager::MethodRegionInfo methodRegionInfo;

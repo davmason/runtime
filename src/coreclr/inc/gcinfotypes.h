@@ -893,7 +893,6 @@ PORTABILITY_WARNING("Please specialize these definitions for your platform!")
 
 #endif
 
-#ifndef FEATURE_NATIVEAOT
 class IAllocator;
 class BitStreamWriter
 {
@@ -1014,7 +1013,6 @@ private:
         *m_pCurrentSlot = 0;
     }
 };
-#endif // !FEATURE_NATIVEAOT
 
 #endif // !__GCINFOTYPES_H__
 
