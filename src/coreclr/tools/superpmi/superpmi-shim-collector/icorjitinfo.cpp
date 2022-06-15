@@ -1895,15 +1895,6 @@ void interceptor_ICJI::allocUnwindInfo(uint8_t*       pHotCode,     /* IN */
     mc->cr->recAllocUnwindInfo(pHotCode, pColdCode, startOffset, endOffset, unwindSize, pUnwindBlock, funcKind);
 }
 
-void interceptor_ICJI::publishGCInfo(uint8_t* destBuffer,
-                                     void*    writer1,
-                                     void*    writer2)
-{
-    mc->cr->AddCall("publishGCInfo");
-    original_ICorJitInfo->publishGCInfo(destBuffer, writer1, writer2);
-    mc->cr->recPublishGCInfo(destBuffer, writer1, writer2);
-}
-
 // Get a block of memory needed for the code manager information,
 // (the info for enumerating the GC pointers while crawling the
 // stack frame).

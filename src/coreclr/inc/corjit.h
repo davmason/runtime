@@ -285,11 +285,6 @@ public:
             CorJitFuncKind      funcKind               /* IN */
             ) = 0;
 
-    virtual void publishGCInfo(
-            uint8_t * destBuffer, 
-            void *    writer1,
-            void *    writer2) = 0;
-
         // Get a block of memory needed for the code manager information,
         // (the info for enumerating the GC pointers while crawling the
         // stack frame).

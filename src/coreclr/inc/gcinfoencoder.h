@@ -191,6 +191,126 @@ struct GcSlotDesc
 };
 
 class BitArray;
+class BitStreamWriter
+{
+public:
+    BitStreamWriter( IAllocator* pAllocator );
+
+    // bit 0 is the least significative bit
+    void Write( size_t data, UINT32 count );
+
+    inline size_t GetBitCount()
+    {
+        return m_BitCount;
+    }
+
+    inline size_t GetByteCount()
+    {
+        return ( m_BitCount + 7 )  / 8;
+    }
+
+
+    void CopyTo( BYTE* buffer );
+    void Dispose();
+
+    //--------------------------------------------------------
+    // Compute the number of bits used to encode variable length numbers
+    // Uses base+1 bits at minimum
+    // Bits 0..(base-1) represent the encoded quantity
+    // If it doesn't fit, set bit #base to 1 and use base+1 more bits
+    //--------------------------------------------------------
+    static int SizeofVarLengthUnsigned( size_t n, UINT32 base );
+
+    //--------------------------------------------------------
+    // Encode variable length numbers
+    // Uses base+1 bits at minimum
+    // Bits 0..(base-1) represent the encoded quantity
+    // If it doesn't fit, set bit #base to 1 and use base+1 more bits
+    //--------------------------------------------------------
+    int EncodeVarLengthUnsigned( size_t n, UINT32 base );
+
+    //--------------------------------------------------------
+    // Signed quantities are encoded the same as unsigned
+    // The most relevant difference is that a number is considered
+    // to fit in base bits if the topmost bit of a base-long chunk
+    // matches the sign of the whole number
+    //--------------------------------------------------------
+    int EncodeVarLengthSigned( SSIZE_T n, UINT32 base );
+
+private:
+    class MemoryBlockList;
+    class MemoryBlock
+    {
+        friend class MemoryBlockList;
+        MemoryBlock* m_next;
+
+    public:
+        size_t Contents[];
+
+        inline MemoryBlock* Next()
+        {
+            return m_next;
+        }
+    };
+
+    class MemoryBlockList
+    {
+        MemoryBlock* m_head;
+        MemoryBlock* m_tail;
+
+    public:
+        MemoryBlockList();
+
+        inline MemoryBlock* Head()
+        {
+            return m_head;
+        }
+
+        MemoryBlock* AppendNew(IAllocator* allocator, size_t bytes);
+        void Dispose(IAllocator* allocator);
+    };
+
+    IAllocator* m_pAllocator;
+    size_t m_BitCount;
+    UINT32 m_FreeBitsInCurrentSlot;
+    MemoryBlockList m_MemoryBlocks;
+    const static int m_MemoryBlockSize = 128;    // must be a multiple of the pointer size
+    size_t* m_pCurrentSlot;            // bits are written through this pointer
+    size_t* m_OutOfBlockSlot;        // sentinel value to determine when the block is full
+#ifdef _DEBUG
+    int m_MemoryBlocksCount;
+#endif
+
+private:
+    // Writes bits knowing that they will all fit in the current memory slot
+    inline void WriteInCurrentSlot( size_t data, UINT32 count )
+    {
+        data &= SAFE_SHIFT_LEFT(1, count) - 1;
+        data <<= (BITS_PER_SIZE_T - m_FreeBitsInCurrentSlot);
+        *m_pCurrentSlot |= data;
+    }
+
+    inline void AllocMemoryBlock()
+    {
+        _ASSERTE( IS_ALIGNED( m_MemoryBlockSize, sizeof( size_t ) ) );
+        MemoryBlock* pMemBlock = m_MemoryBlocks.AppendNew(m_pAllocator, m_MemoryBlockSize);
+
+        m_pCurrentSlot = pMemBlock->Contents;
+        m_OutOfBlockSlot = m_pCurrentSlot + m_MemoryBlockSize / sizeof( size_t );
+
+#ifdef _DEBUG
+           m_MemoryBlocksCount++;
+#endif
+
+    }
+
+    inline void InitCurrentSlot()
+    {
+        m_FreeBitsInCurrentSlot = BITS_PER_SIZE_T;
+        *m_pCurrentSlot = 0;
+    }
+};
+
 
 typedef UINT32 GcSlotId;
 
@@ -403,7 +523,6 @@ private:
     UINT32 m_SizeOfStackOutgoingAndScratchArea;
 #endif // FIXED_STACK_PARAMETER_SCRATCH_AREA
 
-    void   eePublishGCInfo(BYTE *destBuffer, BitStreamWriter *writer1, BitStreamWriter *writer2);
     void * eeAllocGCInfo (size_t        blockSize);
 
 private:

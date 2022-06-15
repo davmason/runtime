@@ -975,8 +975,6 @@ public:
                                 , UINT nUnwindInfos
 #endif
                                 );
-
-    void                publishGCInfo(BYTE *destBuffer, void *writer1, void *writer2);
     BYTE *              allocGCInfo(CodeHeader* pCodeHeader, DWORD blockSize, size_t * pAllocationSize);
     EE_ILEXCEPTION*     allocEHInfo(CodeHeader* pCodeHeader, unsigned numClauses, size_t * pAllocationSize);
     JumpStubBlockHeader* allocJumpStubBlock(MethodDesc* pMD, DWORD numJumps,

@@ -1726,15 +1726,6 @@ void MyICJI::allocUnwindInfo(uint8_t*       pHotCode,     /* IN */
                                             funcKind);
 }
 
-void MyICJI::publishGCInfo(uint8_t* destBuffer, /* IN */
-                            void*    writer1,    /* IN */
-                            void*    writer2    /* IN */
-                          )
-{
-    jitInstance->mc->cr->AddCall("publishGCInfo");
-    jitInstance->mc->cr->recPublishGCInfo(destBuffer, writer1, writer2);
-}
-
 // Get a block of memory needed for the code manager information,
 // (the info for enumerating the GC pointers while crawling the
 // stack frame).

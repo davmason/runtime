@@ -656,11 +656,6 @@ void allocUnwindInfo(
           uint8_t* pUnwindBlock,
           CorJitFuncKind funcKind) override;
 
-void publishGCInfo(
-          uint8_t* destBuffer,
-          void* writer1,
-          void* writer2) override;
-
 void* allocGCInfo(
           size_t size) override;
 

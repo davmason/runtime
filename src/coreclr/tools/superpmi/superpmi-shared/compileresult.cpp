@@ -349,18 +349,11 @@ bool CompileResult::repSetPatchpointInfo(PatchpointInfo** patchpointInfo)
     return true;
 }
 
-
-void CompileResult::recPublishGCInfo(uint8_t* destBuffer, void *writer1, void *writer2)
-{
-    printf("publishGCInfo destBuffer=%p", destBuffer);
-}
-
 void CompileResult::recAllocGCInfo(size_t size, void* retval)
 {
     allocGCInfoDets.size   = size;
     allocGCInfoDets.retval = retval;
 }
-
 void CompileResult::recAllocGCInfoCapture()
 {
     if (AllocGCInfo == nullptr)

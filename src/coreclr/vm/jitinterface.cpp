@@ -12108,27 +12108,6 @@ void CEEJitInfo::allocMem (AllocMemArgs *pArgs)
     EE_TO_JIT_TRANSITION();
 }
 
-void CEEJitInfo::publishGCInfo (
-        uint8_t * destBuffer, 
-        void *    writer1,
-        void *    writer2)
-{
-    CONTRACTL {
-        THROWS;
-        GC_TRIGGERS;
-        MODE_PREEMPTIVE;
-    } CONTRACTL_END;
-
-    JIT_TO_EE_TRANSITION();
-    _ASSERTE(destBuffer != NULL);
-    _ASSERTE(writer1 != NULL);
-    _ASSERTE(writer2 != NULL);
-
-    m_jitManager->publishGCInfo(destBuffer, writer1, writer2);
-
-    EE_TO_JIT_TRANSITION();
-}
-
 /*********************************************************************/
 void * CEEJitInfo::allocGCInfo (size_t size)
 {
@@ -14126,15 +14105,6 @@ void CEEInfo::allocUnwindInfo (
 {
     LIMITED_METHOD_CONTRACT;
     UNREACHABLE();      // only called on derived class.
-}
-
-void CEEInfo::publishGCInfo (
-        uint8_t * destBuffer, 
-        void *    writer1,
-        void *    writer2)
-{
-    LIMITED_METHOD_CONTRACT;
-    UNREACHABLE();
 }
 
 void * CEEInfo::allocGCInfo (

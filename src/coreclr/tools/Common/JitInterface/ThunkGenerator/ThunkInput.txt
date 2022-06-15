@@ -313,7 +313,6 @@ FUNCTIONS
     void allocMem(AllocMemArgs* pArgs);
     void reserveUnwindInfo(bool isFunclet, bool isColdCode, uint32_t unwindSize)
     void allocUnwindInfo(uint8_t* pHotCode, uint8_t* pColdCode, uint32_t startOffset, uint32_t endOffset, uint32_t unwindSize, uint8_t* pUnwindBlock, CorJitFuncKind funcKind)
-    void publishGCInfo(uint8_t* destBuffer, void* writer1, void* writer2)
     void* allocGCInfo(size_t size)
     void setEHcount(unsigned cEH)
     void setEHinfo(unsigned EHnumber, const CORINFO_EH_CLAUSE* clause)

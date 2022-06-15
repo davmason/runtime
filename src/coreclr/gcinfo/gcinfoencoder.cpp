@@ -2547,9 +2547,14 @@ BYTE* GcInfoEncoder::Emit()
     // NOTE: the returned pointer may not be aligned during ngen.
     _ASSERTE( destBuffer );
 
-    eePublishGCInfo(destBuffer, &m_Info1, &m_Info2);
+    BYTE* ptr = destBuffer;
 
+    m_Info1.CopyTo( ptr );
+    ptr += m_Info1.GetByteCount();
     m_Info1.Dispose();
+
+    m_Info2.CopyTo( ptr );
+    ptr += m_Info2.GetByteCount();
     m_Info2.Dispose();
 
 #ifdef MUST_CALL_JITALLOCATOR_FREE
@@ -2557,11 +2562,6 @@ BYTE* GcInfoEncoder::Emit()
 #endif
 
     return destBuffer;
-}
-
-void GcInfoEncoder::eePublishGCInfo(BYTE *destBuffer, BitStreamWriter *writer1, BitStreamWriter *writer2)
-{
-    m_pCorJitInfo->publishGCInfo(destBuffer, writer1, writer2);
 }
 
 void * GcInfoEncoder::eeAllocGCInfo (size_t        blockSize)
