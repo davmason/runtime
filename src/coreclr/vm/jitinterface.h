@@ -684,6 +684,7 @@ public:
 
         m_CodeHeader = NULL;
         m_CodeHeaderRW = NULL;
+        m_pGCInfo = NULL;
 
         m_codeWriteBufferSize = 0;
 #ifdef USE_INDIRECT_CODEHEADER
@@ -809,6 +810,7 @@ public:
           m_fJumpStubOverflow(FALSE),
           m_reserveForJumpStubs(0),
 #endif
+          m_pGCInfo(NULL),
           m_GCinfo_len(0),
           m_EHinfo_len(0),
           m_iOffsetMapping(0),
@@ -960,6 +962,7 @@ protected :
     ULONG                   m_codeSize;     // Code size requested via allocMem
 #endif
 
+    BYTE *                  m_pGCInfo;      // Keep GCInfo until it is fully emitted so we can publish it under the lock
     size_t                  m_GCinfo_len;   // Cached copy of GCinfo_len so we can backout in BackoutJitData()
     size_t                  m_EHinfo_len;   // Cached copy of EHinfo_len so we can backout in BackoutJitData()
 

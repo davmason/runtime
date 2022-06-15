@@ -263,6 +263,12 @@ public:
         return pRealCodeHeader->phdrJitGCInfo;
 
     }
+    PTR_BYTE*               GetGCInfoAddr()
+    {
+        SUPPORTS_DAC;
+        return &(pRealCodeHeader->phdrJitGCInfo);
+
+    }
     PTR_MethodDesc          GetMethodDesc()
     {
         SUPPORTS_DAC;
@@ -976,6 +982,8 @@ public:
 #endif
                                 );
     BYTE *              allocGCInfo(CodeHeader* pCodeHeader, DWORD blockSize, size_t * pAllocationSize);
+    void                setGCInfo(BYTE** pCodeHeader, BYTE * pbGCInfo);
+
     EE_ILEXCEPTION*     allocEHInfo(CodeHeader* pCodeHeader, unsigned numClauses, size_t * pAllocationSize);
     JumpStubBlockHeader* allocJumpStubBlock(MethodDesc* pMD, DWORD numJumps,
                                             BYTE * loAddr, BYTE * hiAddr,

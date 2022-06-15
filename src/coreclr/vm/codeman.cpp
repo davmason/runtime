@@ -3215,21 +3215,33 @@ BYTE* EEJitManager::allocGCInfo(CodeHeader* pCodeHeader, DWORD blockSize, size_t
     } CONTRACTL_END;
 
     MethodDesc* pMD = pCodeHeader->GetMethodDesc();
+    BYTE *pbGCInfo = NULL;
     // sadly for light code gen I need the check in here. We should change GetJitMetaHeap
     if (pMD->IsLCGMethod())
     {
         CrstHolder ch(&m_CodeHeapCritSec);
-        pCodeHeader->SetGCInfo((BYTE*)(void*)pMD->AsDynamicMethodDesc()->GetResolver()->GetJitMetaHeap()->New(blockSize));
+        pbGCInfo = (BYTE*)(void*)pMD->AsDynamicMethodDesc()->GetResolver()->GetJitMetaHeap()->New(blockSize);
     }
     else
     {
-        pCodeHeader->SetGCInfo((BYTE*) (void*)GetJitMetaHeap(pMD)->AllocMem(S_SIZE_T(blockSize)));
+        pbGCInfo = (BYTE*)(void*)GetJitMetaHeap(pMD)->AllocMem(S_SIZE_T(blockSize));
     }
-    _ASSERTE(pCodeHeader->GetGCInfo()); // AllocMem throws if there's not enough memory
+    _ASSERTE(pbGCInfo); // AllocMem throws if there's not enough memory
 
-    * pAllocationSize = blockSize;  // Store the allocation size so we can backout later.
+    *pAllocationSize = blockSize;  // Store the allocation size so we can backout later.
 
-    return(pCodeHeader->GetGCInfo());
+    return pbGCInfo;
+}
+
+void EEJitManager::setGCInfo(BYTE** pCodeHeader, BYTE * pbGCInfo)
+{
+    CONTRACTL {
+        THROWS;
+        GC_NOTRIGGER;
+    } CONTRACTL_END;
+
+    CrstHolder ch(&m_CodeHeapCritSec);
+    *pCodeHeader = pbGCInfo;
 }
 
 void* EEJitManager::allocEHInfoRaw(CodeHeader* pCodeHeader, DWORD blockSize, size_t * pAllocationSize)

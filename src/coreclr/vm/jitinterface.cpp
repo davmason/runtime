@@ -10970,6 +10970,12 @@ void CEEJitInfo::WriteCode(EEJitManager * jitMgr)
     UnwindInfoTable::PublishUnwindInfoForMethod(m_moduleBase, m_CodeHeader->GetUnwindInfo(0), m_totalUnwindInfos);
 #endif // defined(TARGET_AMD64)
 
+    {
+        ExecutableWriterHolder<BYTE *> gcInfoWriterHolder(m_CodeHeader->GetGCInfoAddr(), sizeof(void *));
+        _ASSERTE(m_CodeHeader->GetGCInfo() == 0);
+        jitMgr->setGCInfo(gcInfoWriterHolder.GetRW(), m_pGCInfo);
+        _ASSERTE(m_CodeHeader->GetGCInfo() != 0 && m_pGCInfo == m_CodeHeader->GetGCInfo());
+    }
 }
 
 
@@ -12117,8 +12123,6 @@ void * CEEJitInfo::allocGCInfo (size_t size)
         MODE_PREEMPTIVE;
     } CONTRACTL_END;
 
-    void * block = NULL;
-
     JIT_TO_EE_TRANSITION();
 
     _ASSERTE(m_CodeHeaderRW != 0);
@@ -12131,17 +12135,15 @@ void * CEEJitInfo::allocGCInfo (size_t size)
     }
 #endif // HOST_64BIT
 
-    block = m_jitManager->allocGCInfo(m_CodeHeaderRW,(DWORD)size, &m_GCinfo_len);
-    if (!block)
+    m_pGCInfo = m_jitManager->allocGCInfo(m_CodeHeaderRW,(DWORD)size, &m_GCinfo_len);
+    if (!m_pGCInfo)
     {
         COMPlusThrowHR(CORJIT_OUTOFMEM);
     }
 
-    _ASSERTE(m_CodeHeaderRW->GetGCInfo() != 0 && block == m_CodeHeaderRW->GetGCInfo());
-
     EE_TO_JIT_TRANSITION();
 
-    return block;
+    return m_pGCInfo;
 }
 
 /*********************************************************************/
