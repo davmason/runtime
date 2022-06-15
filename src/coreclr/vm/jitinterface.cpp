@@ -10973,7 +10973,7 @@ void CEEJitInfo::WriteCode(EEJitManager * jitMgr)
     {
         ExecutableWriterHolder<BYTE *> gcInfoWriterHolder(m_CodeHeader->GetGCInfoAddr(), sizeof(void *));
         _ASSERTE(m_CodeHeader->GetGCInfo() == 0);
-        jitMgr->setGCInfo(gcInfoWriterHolder.GetRW(), m_pGCInfo);
+        InterlockedExchangeT<PTR_BYTE>(gcInfoWriterHolder.GetRW(), m_pGCInfo);
         _ASSERTE(m_CodeHeader->GetGCInfo() != 0 && m_pGCInfo == m_CodeHeader->GetGCInfo());
     }
 }

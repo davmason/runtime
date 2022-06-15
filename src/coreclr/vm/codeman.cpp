@@ -3233,17 +3233,6 @@ BYTE* EEJitManager::allocGCInfo(CodeHeader* pCodeHeader, DWORD blockSize, size_t
     return pbGCInfo;
 }
 
-void EEJitManager::setGCInfo(BYTE** pCodeHeader, BYTE * pbGCInfo)
-{
-    CONTRACTL {
-        THROWS;
-        GC_NOTRIGGER;
-    } CONTRACTL_END;
-
-    CrstHolder ch(&m_CodeHeapCritSec);
-    *pCodeHeader = pbGCInfo;
-}
-
 void* EEJitManager::allocEHInfoRaw(CodeHeader* pCodeHeader, DWORD blockSize, size_t * pAllocationSize)
 {
     CONTRACTL {
