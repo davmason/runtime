@@ -22,6 +22,9 @@ public:
     //  mapperHandle - handle of the double mapped memory mapper to destroy
     static void DestroyDoubleMemoryMapper(void *mapperHandle);
 
+    // TODO: hacky for prototype
+    static void MakeRX(void *pBaseAddr, size_t size, void *mapperHandle, size_t offset);
+
     // Reserve a block of memory that can be double mapped.
     // Parameters:
     //  mapperHandle - handle of the double mapped memory mapper to use

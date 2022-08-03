@@ -2669,7 +2669,7 @@ HeapList* LoaderCodeHeap::CreateCodeHeap(CodeHeapRequestInfo *pInfo, LoaderHeap 
         rwFakeProgramHeader.GetRW()->paddr = 0;
         rwFakeProgramHeader.GetRW()->filesz = sizeof(NoteSegment);
         rwFakeProgramHeader.GetRW()->memsz = sizeof(NoteSegment);
-        rwFakeProgramHeader.GetRW()->align = 0;
+        rwFakeProgramHeader.GetRW()->align = 4;
 
         ExecutableWriterHolder<NoteSegment> rwFakeNoteSegment(fakeNoteSegment, sizeof(NoteSegment));
 
@@ -2683,6 +2683,8 @@ HeapList* LoaderCodeHeap::CreateCodeHeap(CodeHeapRequestInfo *pInfo, LoaderHeap 
         memcpy(rwFakeNoteSegment.GetRW()->name, "GNU", 4);
         memcpy(rwFakeNoteSegment.GetRW()->desc, &fakeBuildId, sizeof(fakeBuildId));
     }
+
+    ExecutableAllocator::Instance()->MakeRX(pBaseAddr, reserveSize);
 
 // #endif // TARGET_UNIX
 
