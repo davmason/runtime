@@ -1438,7 +1438,7 @@ void *UnlockedLoaderHeap::UnlockedAllocMem_NoThrow(size_t dwSize
         dwSize += s_random.Next() % 256;
 #endif
 
-    dwSize = AllocMem_TotalSize(dwSize);
+    dwSize = AllocMem_TotalSize(dwSize) + ALIGN_UP(0x9C, 0x8);
 
 again:
 
@@ -1457,6 +1457,7 @@ again:
 
         if (pData)
         {
+            pData = (void *)((uintptr_t)pData + ALIGN_UP(0x9C, 0x8));
 #ifdef _DEBUG
             BYTE *pAllocatedBytes = (BYTE*)pData;
             ExecutableWriterHolderNoLog<void> dataWriterHolder;

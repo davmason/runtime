@@ -135,6 +135,112 @@ bool IsMapJitFlagNeeded()
 }
 #endif // TARGET_OSX
 
+typedef struct 
+{
+    unsigned char ident[16];
+    uint16_t    type;
+    uint16_t    machine;
+    uint32_t    version;
+    uint64_t    entry;
+    uint64_t    phoff;
+    uint64_t    shoff;
+    uint32_t    flags;
+    uint16_t    ehsize;
+    uint16_t    phentsize;
+    uint16_t    phnum;
+    uint16_t    shentsize;
+    uint16_t    shnum;
+    uint16_t    shstrndx;
+} ElfHeader;
+
+typedef struct
+{
+    uint32_t  type;
+    uint32_t  flags; 
+    uint64_t  offset;
+    uint64_t  vaddr; 
+    uint64_t  paddr; 
+    uint64_t  filesz;
+    uint64_t  memsz; 
+    uint64_t  align; 
+} ProgramHeader;
+
+typedef struct 
+{
+    uint32_t namesz;
+    uint32_t descsz;
+    uint32_t type;
+    unsigned char name[4];
+    unsigned char desc[20];
+} NoteSegment;
+
+void WriteFakeElfHeader(void *pTargetRW)
+{
+    ElfHeader *fakeElfHeader = reinterpret_cast<ElfHeader *>(pTargetRW);
+    // Magic number
+    fakeElfHeader->ident[0] = 0x7F;
+    fakeElfHeader->ident[1] = 'E';
+    fakeElfHeader->ident[2] = 'L';
+    fakeElfHeader->ident[3] = 'F';
+
+    // 64 bit
+    fakeElfHeader->ident[4] = 2;
+    // Little endian
+    fakeElfHeader->ident[5] = 1;
+    // Version
+    fakeElfHeader->ident[6] = 1;
+    // ABI 0 = System V
+    fakeElfHeader->ident[7] = 0;
+    // ABI version
+    fakeElfHeader->ident[8] = 0;
+    // Padding
+    for (int i = 9; i < 16; ++i)
+    {
+        fakeElfHeader->ident[i] = 0;
+    }
+
+    // 0 = none
+    fakeElfHeader->type = 0;
+    // 3E = amd64
+    fakeElfHeader->machine = 0x3E;
+    fakeElfHeader->version = 1;
+    fakeElfHeader->entry = 0x0;
+    // offset to ph table, immediately after this
+    fakeElfHeader->phoff = sizeof(ElfHeader);
+    fakeElfHeader->shoff = 0;
+    fakeElfHeader->flags = 0;
+    fakeElfHeader->ehsize = sizeof(ElfHeader);
+    fakeElfHeader->phentsize = sizeof(ProgramHeader);
+    // One note header
+    fakeElfHeader->phnum = 1;
+    fakeElfHeader->shentsize = 0;
+    fakeElfHeader->shnum = 0;
+    fakeElfHeader->shstrndx = 0;
+    
+    ProgramHeader *fakeProgramHeader = reinterpret_cast<ProgramHeader *>((void *)((uintptr_t)pTargetRW + sizeof(ElfHeader)));
+    NoteSegment *fakeNoteSegment = reinterpret_cast<NoteSegment *>((void *)((uintptr_t)pTargetRW + sizeof(ElfHeader) + sizeof(ProgramHeader)));
+    
+    // 0x4 == PT_NOTE
+    fakeProgramHeader->type = 0x4;
+    fakeProgramHeader->flags = 0;
+    fakeProgramHeader->offset = sizeof(ElfHeader) + sizeof(ProgramHeader);
+    fakeProgramHeader->vaddr = (uint64_t)fakeNoteSegment;
+    fakeProgramHeader->paddr = 0;
+    fakeProgramHeader->filesz = sizeof(NoteSegment);
+    fakeProgramHeader->memsz = sizeof(NoteSegment);
+    fakeProgramHeader->align = 0;
+
+    unsigned char fakeBuildId[20] = { 0xA1, 0x43, 0x6D, 0x06, 0x5B, 0xAD, 0x43, 0x8A, 0xBA, 0x5D, 0x77, 0x82, 0x13, 0x0A, 0xB5, 0x6E, 0xAA, 0xAB, 0xAC, 0xAD };
+
+    // "GNU\0"
+    fakeNoteSegment->namesz = 4;
+    fakeNoteSegment->descsz = sizeof(fakeBuildId);
+    // 3 = NT_GNU_BUILD_ID
+    fakeNoteSegment->type = 3;
+    memcpy(fakeNoteSegment->name, "GNU", 4);
+    memcpy(fakeNoteSegment->desc, &fakeBuildId, sizeof(fakeBuildId));
+}
+
 void* VMToOSInterface::ReserveDoubleMappedMemory(void *mapperHandle, size_t offset, size_t size, const void *rangeStart, const void* rangeEnd)
 {
     int fd = (int)(size_t)mapperHandle;
@@ -150,8 +256,17 @@ void* VMToOSInterface::ReserveDoubleMappedMemory(void *mapperHandle, size_t offs
 #ifndef TARGET_OSX
     if (result != NULL)
     {
+        result = mmap(result, size, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_FIXED, fd, offset);
+        if (result == MAP_FAILED)
+        {
+            assert(false);
+            result = NULL;
+        }
+
         // Map the shared memory over the range reserved from the executable memory allocator.
-        result = mmap(result, size, PROT_NONE, MAP_SHARED | MAP_FIXED, fd, offset);
+        WriteFakeElfHeader(result);
+
+        result = mmap(result, size, PROT_READ | PROT_EXEC, MAP_SHARED | MAP_FIXED, fd, offset);
         if (result == MAP_FAILED)
         {
             assert(false);
@@ -167,7 +282,22 @@ void* VMToOSInterface::ReserveDoubleMappedMemory(void *mapperHandle, size_t offs
     }
 
 #ifndef TARGET_OSX
-    result = mmap(NULL, size, PROT_NONE, MAP_SHARED, fd, offset);
+    result = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, offset);
+    if (result == MAP_FAILED)
+    {
+        assert(false);
+        result = NULL;
+    }
+ 
+    WriteFakeElfHeader(result);
+
+    result = mmap(result, size, PROT_READ | PROT_EXEC, MAP_SHARED, fd, offset);
+    if (result == MAP_FAILED)
+    {
+        assert(false);
+        result = NULL;
+    }
+
 #else
     int mmapFlags = MAP_ANON | MAP_PRIVATE;
     if (IsMapJitFlagNeeded())
@@ -181,11 +311,17 @@ void* VMToOSInterface::ReserveDoubleMappedMemory(void *mapperHandle, size_t offs
         assert(false);
         result = NULL;
     }
+
     return result;
 }
 
 void *VMToOSInterface::CommitDoubleMappedMemory(void* pStart, size_t size, bool isExecutable)
 {
+    if (isExecutable)
+    {
+        return pStart;
+    }
+
     if (mprotect(pStart, size, isExecutable ? (PROT_READ | PROT_EXEC) : (PROT_READ | PROT_WRITE)) == -1)
     {
         return NULL;

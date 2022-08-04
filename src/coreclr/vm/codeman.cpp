@@ -2493,45 +2493,6 @@ static size_t GetDefaultReserveForJumpStubs(size_t codeHeapSize)
 #endif
 }
 
-typedef struct 
-{
-    unsigned char ident[16];
-    uint16_t    type;
-    uint16_t    machine;
-    uint32_t    version;
-    uint64_t    entry;
-    uint64_t    phoff;
-    uint64_t    shoff;
-    uint32_t    flags;
-    uint16_t    ehsize;
-    uint16_t    phentsize;
-    uint16_t    phnum;
-    uint16_t    shentsize;
-    uint16_t    shnum;
-    uint16_t    shstrndx;
-} ElfHeader;
-
-typedef struct
-{
-    uint32_t  type;
-    uint32_t  flags; 
-    uint64_t  offset;
-    uint64_t  vaddr; 
-    uint64_t  paddr; 
-    uint64_t  filesz;
-    uint64_t  memsz; 
-    uint64_t  align; 
-} ProgramHeader;
-
-typedef struct 
-{
-    uint32_t namesz;
-    uint32_t descsz;
-    uint32_t type;
-    unsigned char name[4];
-    unsigned char desc[20];
-} NoteSegment;
-
 HeapList* LoaderCodeHeap::CreateCodeHeap(CodeHeapRequestInfo *pInfo, LoaderHeap *pJitMetaHeap)
 {
     CONTRACT(HeapList *) {
@@ -2608,83 +2569,8 @@ HeapList* LoaderCodeHeap::CreateCodeHeap(CodeHeapRequestInfo *pInfo, LoaderHeap 
         pCodeHeap->m_LoaderHeap.SetReservedRegion(pBaseAddr, reserveSize, TRUE);
     }
 
-// #ifdef TARGET_UNIX
-    static_assert_no_msg(sizeof(ElfHeader) == 0x40);
-    ElfHeader *fakeElfHeader = (ElfHeader *)pCodeHeap->m_LoaderHeap.AllocMem(sizeof(ElfHeader));
-    {
-        ExecutableWriterHolder<ElfHeader> rwFakeElfHeader(fakeElfHeader, sizeof(ElfHeader));
-
-        // Magic number
-        rwFakeElfHeader.GetRW()->ident[0] = 0x7F;
-        rwFakeElfHeader.GetRW()->ident[1] = 'E';
-        rwFakeElfHeader.GetRW()->ident[2] = 'L';
-        rwFakeElfHeader.GetRW()->ident[3] = 'F';
-
-        // 64 bit
-        rwFakeElfHeader.GetRW()->ident[4] = 2;
-        // Little endian
-        rwFakeElfHeader.GetRW()->ident[5] = 1;
-        // Version
-        rwFakeElfHeader.GetRW()->ident[6] = 1;
-        // ABI 0 = System V
-        rwFakeElfHeader.GetRW()->ident[7] = 0;
-        // ABI version
-        rwFakeElfHeader.GetRW()->ident[8] = 0;
-        // Padding
-        for (int i = 9; i < 16; ++i)
-        {
-            rwFakeElfHeader.GetRW()->ident[i] = 0;
-        }
-
-        // 0 = none
-        rwFakeElfHeader.GetRW()->type = 0;
-        // 3E = amd64
-        rwFakeElfHeader.GetRW()->machine = 0x3E;
-        rwFakeElfHeader.GetRW()->version = 1;
-        rwFakeElfHeader.GetRW()->entry = 0x0;
-        // offset to ph table, immediately after this
-        rwFakeElfHeader.GetRW()->phoff = sizeof(ElfHeader);
-        rwFakeElfHeader.GetRW()->shoff = 0;
-        rwFakeElfHeader.GetRW()->flags = 0;
-        rwFakeElfHeader.GetRW()->ehsize = sizeof(ElfHeader);
-        rwFakeElfHeader.GetRW()->phentsize = sizeof(ProgramHeader);
-        // One note header
-        rwFakeElfHeader.GetRW()->phnum = 1;
-        rwFakeElfHeader.GetRW()->shentsize = 0;
-        rwFakeElfHeader.GetRW()->shnum = 0;
-        rwFakeElfHeader.GetRW()->shstrndx = 0;
-    }
-
-    static_assert_no_msg(sizeof(ProgramHeader) == 0x38);
-    ProgramHeader *fakeProgramHeader = (ProgramHeader *)pCodeHeap->m_LoaderHeap.AllocMem(sizeof(ProgramHeader));
-    NoteSegment *fakeNoteSegment = (NoteSegment *)pCodeHeap->m_LoaderHeap.AllocMem(sizeof(NoteSegment));
-    {
-        ExecutableWriterHolder<ProgramHeader> rwFakeProgramHeader(fakeProgramHeader, sizeof(ProgramHeader));
-
-        // 0x4 == PT_NOTE
-        rwFakeProgramHeader.GetRW()->type = 0x4;
-        rwFakeProgramHeader.GetRW()->flags = 0;
-        rwFakeProgramHeader.GetRW()->offset = sizeof(ElfHeader) + sizeof(ProgramHeader);
-        rwFakeProgramHeader.GetRW()->vaddr = (uint64_t)fakeNoteSegment;
-        rwFakeProgramHeader.GetRW()->paddr = 0;
-        rwFakeProgramHeader.GetRW()->filesz = sizeof(NoteSegment);
-        rwFakeProgramHeader.GetRW()->memsz = sizeof(NoteSegment);
-        rwFakeProgramHeader.GetRW()->align = 0;
-
-        ExecutableWriterHolder<NoteSegment> rwFakeNoteSegment(fakeNoteSegment, sizeof(NoteSegment));
-
-        unsigned char fakeBuildId[20] = { 0xA1, 0x43, 0x6D, 0x06, 0x5B, 0xAD, 0x43, 0x8A, 0xBA, 0x5D, 0x77, 0x82, 0x13, 0x0A, 0xB5, 0x6E, 0xAA, 0xAB, 0xAC, 0xAD };
-
-        // "GNU\0"
-        rwFakeNoteSegment.GetRW()->namesz = 4;
-        rwFakeNoteSegment.GetRW()->descsz = sizeof(fakeBuildId);
-        // 3 = NT_GNU_BUILD_ID
-        rwFakeNoteSegment.GetRW()->type = 3;
-        memcpy(rwFakeNoteSegment.GetRW()->name, "GNU", 4);
-        memcpy(rwFakeNoteSegment.GetRW()->desc, &fakeBuildId, sizeof(fakeBuildId));
-    }
-
-// #endif // TARGET_UNIX
+    // For the fake ELF header that was written in VMToOSInterface::ReserveDoubleMappedMemory
+    pCodeHeap->m_LoaderHeap.AllocMem(ALIGN_UP(0x9C, 0x8));
 
     // this first allocation is critical as it sets up correctly the loader heap info
     HeapList *pHp = new HeapList;
