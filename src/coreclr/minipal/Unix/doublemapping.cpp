@@ -135,20 +135,6 @@ bool IsMapJitFlagNeeded()
 }
 #endif // TARGET_OSX
 
-void VMToOSInterface::MakeRX(void *pBaseAddr, size_t size, void *mapperHandle, size_t offset)
-{
-    void *result = mmap(pBaseAddr,
-                        size,
-                        PROT_READ | PROT_EXEC,
-                        MAP_SHARED | MAP_FIXED,
-                        (int)(size_t)mapperHandle,
-                        offset);
-    if (result == MAP_FAILED)
-    {
-        assert(false);
-    }
-}
-
 void* VMToOSInterface::ReserveDoubleMappedMemory(void *mapperHandle, size_t offset, size_t size, const void *rangeStart, const void* rangeEnd)
 {
     int fd = (int)(size_t)mapperHandle;

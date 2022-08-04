@@ -206,8 +206,6 @@ public:
 
     // Reserve the specified amount of virtual address space for executable mapping.
     void* Reserve(size_t size);
-    // TODO: hacky for prototype
-    void  MakeRX(void *pBaseAddr, size_t size);
 
     // Reserve the specified amount of virtual address space for executable mapping.
     // The reserved range must be within the loAddress and hiAddress. If it is not

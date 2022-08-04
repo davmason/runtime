@@ -605,24 +605,6 @@ void* ExecutableAllocator::ReserveWithinRange(size_t size, const void* loAddress
     }
 }
 
-#ifdef TARGET_UNIX
-void ExecutableAllocator::MakeRX(void *pBaseAddr, size_t size)
-{
-    size_t offset = 0;
-    for (BlockRX* pBlock = m_pFirstBlockRX; pBlock != NULL; pBlock = pBlock->next)
-    {
-        if (pBaseAddr == pBlock->baseRX)
-        {
-            offset = pBlock->offset;
-            break;
-        }
-    }
-
-    _ASSERTE(offset != 0);
-    VMToOSInterface::MakeRX(pBaseAddr, size, m_doubleMemoryMapperHandle, offset);
-}
-#endif // TARGET_UNIX
-
 // Reserve executable memory. On Windows it tries to use the allocation hints to
 // allocate memory close to the previously allocated executable memory and loaded
 // executable files.
