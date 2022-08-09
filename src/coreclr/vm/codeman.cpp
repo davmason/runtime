@@ -2527,6 +2527,7 @@ HeapList* LoaderCodeHeap::CreateCodeHeap(CodeHeapRequestInfo *pInfo, LoaderHeap 
     size_t allocationSize = pCodeHeap->m_LoaderHeap.AllocMem_TotalSize(initialRequestSize);
 #if defined(TARGET_AMD64) || defined(TARGET_ARM64) || defined(TARGET_LOONGARCH64)
     allocationSize += pCodeHeap->m_LoaderHeap.AllocMem_TotalSize(JUMP_ALLOCATE_SIZE);
+    allocationSize += ALIGN_UP(0x9C, 0x8);
 #endif
     // TODO: don't check in
     // pBaseAddr = (BYTE *)pInfo->m_pAllocator->GetCodeHeapInitialBlock(loAddr, hiAddr, (DWORD)allocationSize, &dwSizeAcquiredFromInitialBlock);
@@ -2570,7 +2571,11 @@ HeapList* LoaderCodeHeap::CreateCodeHeap(CodeHeapRequestInfo *pInfo, LoaderHeap 
     }
 
     // For the fake ELF header that was written in VMToOSInterface::ReserveDoubleMappedMemory
-    pCodeHeap->m_LoaderHeap.AllocMem(ALIGN_UP(0x9C, 0x8));
+    BYTE *elfHeader = (BYTE *)pCodeHeap->m_LoaderHeap.AllocMem(ALIGN_UP(0x9C, 0x8));
+    _ASSERTE(elfHeader[0] == 0x7F);
+    _ASSERTE(elfHeader[1] == 'E');
+    _ASSERTE(elfHeader[2] == 'L');
+    _ASSERTE(elfHeader[3] == 'F');
 
     // this first allocation is critical as it sets up correctly the loader heap info
     HeapList *pHp = new HeapList;

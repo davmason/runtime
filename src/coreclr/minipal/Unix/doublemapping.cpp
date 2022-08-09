@@ -256,8 +256,8 @@ void* VMToOSInterface::ReserveDoubleMappedMemory(void *mapperHandle, size_t offs
 #ifndef TARGET_OSX
     if (result != NULL)
     {
-        result = mmap(result, size, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_FIXED, fd, offset);
-        if (result == MAP_FAILED)
+        void *temp = mmap(result, size, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_FIXED, fd, offset);
+        if (temp == MAP_FAILED)
         {
             assert(false);
             result = NULL;
@@ -282,8 +282,8 @@ void* VMToOSInterface::ReserveDoubleMappedMemory(void *mapperHandle, size_t offs
     }
 
 #ifndef TARGET_OSX
-    result = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, offset);
-    if (result == MAP_FAILED)
+    void *temp = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, offset);
+    if (temp == MAP_FAILED)
     {
         assert(false);
         result = NULL;
@@ -326,6 +326,10 @@ void *VMToOSInterface::CommitDoubleMappedMemory(void* pStart, size_t size, bool 
     {
         return NULL;
     }
+
+    // If not executable, clear ELF header now
+    assert(size >= 0x9C);
+    memset(pStart, 0, 0x9C);
 
     return pStart;
 }
