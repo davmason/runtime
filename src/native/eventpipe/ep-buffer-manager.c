@@ -468,6 +468,7 @@ buffer_manager_allocate_buffer_for_thread (
 	EventPipeBufferList *thread_buffer_list = NULL;
 	EventPipeSequencePoint* sequence_point = NULL;
 	uint32_t sequence_number = 0;
+	bool should_allocate_buffer = false;
 
 	// Pick a buffer size by multiplying the base buffer size by the number of buffers already allocated for this thread.
 	uint32_t size_multiplier = ep_thread_session_state_get_buffer_count_estimate(thread_session_state) + 1;
@@ -499,47 +500,51 @@ buffer_manager_allocate_buffer_for_thread (
 
 	// Attempt to reserve the necessary buffer size
 	EP_ASSERT(buffer_size > 0);
-	ep_return_null_if_nok(buffer_manager_try_reserve_buffer(buffer_manager, buffer_size));
+	should_allocate_buffer = buffer_manager_try_reserve_buffer(buffer_manager, buffer_size);	
 
 	// Allocating a buffer requires us to take the lock.
 	EP_SPIN_LOCK_ENTER (&buffer_manager->rt_lock, section1)
 		thread_buffer_list = ep_thread_session_state_get_buffer_list (thread_session_state);
 		if (thread_buffer_list == NULL) {
-			thread_buffer_list = ep_buffer_list_alloc (buffer_manager, ep_thread_session_state_get_thread (thread_session_state));
-			ep_raise_error_if_nok_holding_spin_lock (thread_buffer_list != NULL, section1);
+			if (should_allocate_buffer) {
+				thread_buffer_list = ep_buffer_list_alloc (buffer_manager, ep_thread_session_state_get_thread (thread_session_state));
+				ep_raise_error_if_nok_holding_spin_lock (thread_buffer_list != NULL, section1);
+
+				ep_thread_session_state_set_buffer_list (thread_session_state, thread_buffer_list);
+				thread_buffer_list = NULL;
+			}
 
 			ep_raise_error_if_nok_holding_spin_lock (ep_rt_thread_session_state_list_append (&buffer_manager->thread_session_state_list, thread_session_state), section1);
-			ep_thread_session_state_set_buffer_list (thread_session_state, thread_buffer_list);
-			thread_buffer_list = NULL;
 		}
 
-		// The sequence counter is exclusively mutated on this thread so this is a thread-local read.
-		sequence_number = ep_thread_session_state_get_volatile_sequence_number (thread_session_state);
-		new_buffer = ep_buffer_alloc (buffer_size, ep_thread_session_state_get_thread (thread_session_state), sequence_number);
-		ep_raise_error_if_nok_holding_spin_lock (new_buffer != NULL, section1);
+		if (should_allocate_buffer) {
+			// The sequence counter is exclusively mutated on this thread so this is a thread-local read.
+			sequence_number = ep_thread_session_state_get_volatile_sequence_number (thread_session_state);
+			new_buffer = ep_buffer_alloc (buffer_size, ep_thread_session_state_get_thread (thread_session_state), sequence_number);
+			ep_raise_error_if_nok_holding_spin_lock (new_buffer != NULL, section1);
 
-		if (buffer_manager->sequence_point_alloc_budget != 0) {
-			// sequence point bookkeeping
-			if (buffer_size >= buffer_manager->remaining_sequence_point_alloc_budget) {
-				sequence_point = ep_sequence_point_alloc ();
-				if (sequence_point) {
-					buffer_manager_init_sequence_point_thread_list (buffer_manager, sequence_point);
-					ep_raise_error_if_nok_holding_spin_lock (buffer_manager_enqueue_sequence_point (buffer_manager, sequence_point), section1);
-					sequence_point = NULL;
+			if (buffer_manager->sequence_point_alloc_budget != 0) {
+				// sequence point bookkeeping
+				if (buffer_size >= buffer_manager->remaining_sequence_point_alloc_budget) {
+					sequence_point = ep_sequence_point_alloc ();
+					if (sequence_point) {
+						buffer_manager_init_sequence_point_thread_list (buffer_manager, sequence_point);
+						ep_raise_error_if_nok_holding_spin_lock (buffer_manager_enqueue_sequence_point (buffer_manager, sequence_point), section1);
+						sequence_point = NULL;
+					}
+					buffer_manager->remaining_sequence_point_alloc_budget = buffer_manager->sequence_point_alloc_budget;
+				} else {
+					buffer_manager->remaining_sequence_point_alloc_budget -= buffer_size;
 				}
-				buffer_manager->remaining_sequence_point_alloc_budget = buffer_manager->sequence_point_alloc_budget;
-			} else {
-				buffer_manager->remaining_sequence_point_alloc_budget -= buffer_size;
 			}
+	#ifdef EP_CHECKED_BUILD
+			buffer_manager->num_buffers_allocated++;
+	#endif // EP_CHECKED_BUILD
+
+			// Set the buffer on the thread.
+			if (new_buffer != NULL)
+				ep_buffer_list_insert_tail (ep_thread_session_state_get_buffer_list (thread_session_state), new_buffer);
 		}
-#ifdef EP_CHECKED_BUILD
-		buffer_manager->num_buffers_allocated++;
-#endif // EP_CHECKED_BUILD
-
-		// Set the buffer on the thread.
-		if (new_buffer != NULL)
-			ep_buffer_list_insert_tail (ep_thread_session_state_get_buffer_list (thread_session_state), new_buffer);
-
 	EP_SPIN_LOCK_EXIT (&buffer_manager->rt_lock, section1)
 
 ep_on_exit:
