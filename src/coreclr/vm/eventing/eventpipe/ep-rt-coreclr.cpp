@@ -35,62 +35,7 @@ walk_managed_stack_for_threads (
 	EventPipeEvent *sampling_event);
 
 static MethodTable *pTaskMT = NULL;
-
-static
-void scan_roots_callback(PTR_PTR_Object ppobj, ScanContext* scan_context, uint32_t flags)
-{
-	if (ppobj != NULL && *ppobj != NULL && pTaskMT != NULL)
-	{
-		MethodTable *pMT = (*ppobj)->GetMethodTable(); 
-		if(pMT != NULL)
-		{
-			if (pMT->IsEquivalentTo(pTaskMT)
-				|| (pMT->GetMethodTableMatchingParentClass(pTaskMT) != NULL))
-			{
-				int indent = 0;
-				TaskObject *task_obj = (TaskObject *)(*ppobj);
-				while (task_obj != NULL)
-				{
-					for (int i = 0; i < indent * 4; ++i)
-					{
-						printf(" ");
-					}
-
-					printf("task=%p\n", task_obj);
-
-					task_obj = task_obj->GetParent();
-					++indent;
-				}
-			}
-		}
-	}
-}
-
-static
-void frameless_callback(LPVOID data, OBJECTREF *obj_ref, uint32_t flags)
-{
-	// TODO: the code manager can give us OBJECTREFs of interior pointers and I don't see a way
-	// to convert those to objects without causing Validate() to fail, so lets cast away the object
-	// ref. Feels wrong though.
-	Object *obj = *((Object **)obj_ref);
-
-    if (flags & GC_CALL_INTERIOR)
-    {
-        obj = GCHeapUtilities::GetGCHeap()->GetContainingObject(obj, true);
-        if (obj == nullptr)
-            return;
-    }
-
-	ScanContext *scan_context = ((GCCONTEXT *)data)->sc;
-    if ((scan_context->thread_under_crawl->IsAddressInStack(obj) 
-    	&& (PTR_TO_TADDR(obj) >= scan_context->stack_limit)))
-    {
-    	return;
-    }
-
-    scan_roots_callback(&obj, scan_context, flags);
-}
-
+static FieldDesc *pCurrentTaskFD = NULL;
 
 static
 StackWalkAction
@@ -113,61 +58,6 @@ stack_walk_callback (
 
 	EP_ASSERT (control_pc != NULL);
 
-	EX_TRY
-	{
-		// TODO: hack, this will bite me later
-		GCX_COOP();
-
-		ENABLE_FORBID_GC_LOADER_USE_IN_THIS_SCOPE();
-
-		if (crawl_frame->ShouldCrawlframeReportGCReferences())
-		{
-			ScanContext sc;
-			sc.promotion = true;
-			sc.thread_under_crawl = crawl_frame->GetThread();
-		
-			if (crawl_frame->IsFrameless())
-			{
-				ICodeManager * code_manager = crawl_frame->GetCodeManager();
-	            _ASSERTE(code_manager != NULL);
-
-	            unsigned flags = crawl_frame->GetCodeManagerFlags();
-
-	            DWORD relOffsetOverride = NO_OVERRIDE_OFFSET;
-	#if defined(FEATURE_EH_FUNCLETS) && defined(USE_GC_INFO_DECODER)
-	            if (!crawl_frame->ShouldParentToFuncletUseUnwindTargetLocationForGCReporting())
-	            {
-	#endif // FEATURE_EH_FUNCLETS && USE_GC_INFO_DECODER
-	            	// EnumGcRefs assumes the pData is a GCContext, can't just pass in arbitrary stuff
-	            	GCCONTEXT gc_context;
-	            	gc_context.f = (promote_func *)frameless_callback;
-	            	gc_context.sc = &sc;
-	            	gc_context.cf = crawl_frame;
-
-		            code_manager->EnumGcRefs(crawl_frame->GetRegisterSet(),
-		                            crawl_frame->GetCodeInfo(),
-		                            flags,
-		                            frameless_callback,
-		                            &gc_context,
-		                            relOffsetOverride);
-	#if defined(FEATURE_EH_FUNCLETS) && defined(USE_GC_INFO_DECODER)
-	            }
-	            // TODO: I think it's safe to ignore funclets... should double check though
-	#endif // FEATURE_EH_FUNCLETS && USE_GC_INFO_DECODER
-			}
-			else
-			{
-	            Frame * frame = crawl_frame->GetFrame();
-	            frame->GcScanRoots(scan_roots_callback, &sc);
-			}
-		}
-	}
-	EX_CATCH
-	{
-
-	}
-	EX_END_CATCH(SwallowAllExceptions);
-
 	// Add the IP to the captured stack.
 	ep_stack_contents_append (stack_contents, control_pc, crawl_frame->GetFunction());
 
@@ -184,25 +74,59 @@ ep_rt_coreclr_walk_managed_stack_for_thread (
 	EP_ASSERT (thread != NULL);
 	EP_ASSERT (stack_contents != NULL);
 
-	// TODO: hacky check that system classes are loaded
-	if (pTaskMT == NULL && g_pThreadClass != NULL)
-	{
-		pTaskMT = CoreLibBinder::GetClass(CLASS__TASK);
-	}
-
 	// Calling into StackWalkFrames in preemptive mode violates the host contract,
 	// but this contract is not used on CoreCLR.
 	CONTRACT_VIOLATION (HostViolation);
+
+	{
+		GCX_COOP();
+
+		if (pCurrentTaskFD != NULL)
+		{
+			TADDR pCurrentTask = thread->GetStaticFieldAddrNoCreate(pCurrentTaskFD);
+			if (pCurrentTask != NULL)
+			{
+				TaskObject *task_obj = *((TaskObject **)(pCurrentTask));
+				if (task_obj != NULL)
+				{
+					printf("Thread %d has current task %p\n", thread->GetOSThreadId(), task_obj);
+
+					EP_ASSERT (task_obj->GetMethodTable()->IsEquivalentTo(pTaskMT)
+						|| (task_obj->GetMethodTable()->GetMethodTableMatchingParentClass(pTaskMT) != NULL));
+
+					int indent = 0;
+					while(true)
+					{
+						task_obj = task_obj->GetParent();
+						if (task_obj == NULL)
+						{
+							break;
+						}
+
+						++indent;
+						for (int i = 0; i < indent * 4; ++i)
+						{
+							printf(" ");
+						}
+
+						printf("task=%p\n", task_obj);
+					}
+				}
+			}
+		}
+	}
 
 	// Before we call into StackWalkFrames we need to mark GC_ON_TRANSITIONS as FALSE
 	// because under GCStress runs (GCStress=0x3), a GC will be triggered for every transition,
 	// which will cause the GC to try to walk the stack while we are in the middle of walking the stack.
 	bool gc_on_transitions = GC_ON_TRANSITIONS (FALSE);
 
+	// printf("starting stackwalk for thread %d\n", thread->GetOSThreadId());
 	StackWalkAction result = thread->StackWalkFrames (
 		(PSTACKWALKFRAMESCALLBACK)stack_walk_callback,
 		stack_contents,
 		ALLOW_ASYNC_STACK_WALK | FUNCTIONSONLY | HANDLESKIPPEDFRAMES | ALLOW_INVALID_OBJECTS);
+	// printf("done with stackwalk\n");
 
 	GC_ON_TRANSITIONS (gc_on_transitions);
 	return ((result == SWA_DONE) || (result == SWA_CONTINUE));
@@ -218,6 +142,13 @@ walk_managed_stack_for_threads (
 {
 	STATIC_CONTRACT_NOTHROW;
 	EP_ASSERT (sampling_thread != NULL);
+
+	// TODO: hacky check that system classes are loaded
+	if (pTaskMT == NULL && g_pThreadClass != NULL)
+	{
+		pTaskMT = CoreLibBinder::GetClass(CLASS__TASK);
+		pCurrentTaskFD = CoreLibBinder::GetField(FIELD__TASK__CURRENT_TASK);
+	}
 
 	Thread *target_thread = NULL;
 

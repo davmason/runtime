@@ -900,6 +900,7 @@ DEFINE_FIELD_U(m_exceptionalChildren,           ContingentPropertiesObject, m_ex
 DEFINE_FIELD_U(m_parent,                        ContingentPropertiesObject, m_parent)
 
 DEFINE_CLASS(TASK,                  Tasks,                  Task)
+DEFINE_FIELD(TASK,                  CURRENT_TASK,           t_currentTask)
 
 DEFINE_CLASS_U(Tasks,                   Task,                   TaskObject)
 // DEFINE_FIELD_U(m_taskId,                TaskObject,             m_taskId)
