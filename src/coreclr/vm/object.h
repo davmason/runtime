@@ -2552,6 +2552,86 @@ private:
     STRINGREF _Condition;
     INT32 _Kind;
 };
+
+enum TaskStateFlags
+{
+    // State constants for m_stateFlags;
+    // The bits of m_stateFlags are allocated as follows:
+    //   0x7FFF0000 - Task state flags
+    //   0x0000FF00 - internal TaskCreationOptions flags
+    //   0x000000FF - publicly exposed TaskCreationOptions flags
+    // See TaskCreationOptions for bit values associated with TaskCreationOptions
+
+    Started = 0x10000,                       // bin: 0000 0000 0000 0001 0000 0000 0000 0000
+    DelegateInvoked = 0x20000,               // bin: 0000 0000 0000 0010 0000 0000 0000 0000
+    Disposed = 0x40000,                      // bin: 0000 0000 0000 0100 0000 0000 0000 0000
+    ExceptionObservedByParent = 0x80000,     // bin: 0000 0000 0000 1000 0000 0000 0000 0000
+    CancellationAcknowledged = 0x100000,     // bin: 0000 0000 0001 0000 0000 0000 0000 0000
+    Faulted = 0x200000,                      // bin: 0000 0000 0010 0000 0000 0000 0000 0000
+    Canceled = 0x400000,                     // bin: 0000 0000 0100 0000 0000 0000 0000 0000
+    WaitingOnChildren = 0x800000,            // bin: 0000 0000 1000 0000 0000 0000 0000 0000
+    RanToCompletion = 0x1000000,             // bin: 0000 0001 0000 0000 0000 0000 0000 0000
+    WaitingForActivation = 0x2000000,        // bin: 0000 0010 0000 0000 0000 0000 0000 0000
+    CompletionReserved = 0x4000000,          // bin: 0000 0100 0000 0000 0000 0000 0000 0000
+    WaitCompletionNotification = 0x10000000, // bin: 0001 0000 0000 0000 0000 0000 0000 0000
+    ExecutionContextIsNull = 0x20000000,     // bin: 0010 0000 0000 0000 0000 0000 0000 0000
+    TaskScheduledWasFired = 0x40000000,      // bin: 0100 0000 0000 0000 0000 0000 0000 0000
+
+    CompletedMask = Canceled | Faulted | RanToCompletion, // A mask for all of the final states a task may be in. SOS DumpAsync command depends on these values.
+    OptionsMask = 0xFFFF,                    // signifies the Options portion of m_stateFlags bin: 0000 0000 0000 0000 1111 1111 1111 1111
+};
+
+typedef DPTR(class TaskObject) PTR_ContingentPropertiesObject;
+class ContingentPropertiesObject : public Object
+{
+    friend class CoreLibBinder;
+    friend class TaskObject;
+
+public:
+
+private:
+    OBJECTREF m_capturedContext; // The execution context to run the task within, if any. Only set from non-concurrent contexts.
+    OBJECTREF m_completionEvent; // Lazily created if waiting is required.
+    OBJECTREF m_exceptionsHolder; // Tracks exceptions, if any have occurred
+    OBJECTREF m_cancellationRegistration; // Task's registration with the cancellation token
+    OBJECTREF m_exceptionalChildren;
+    OBJECTREF m_parent;
+    BYTE unused[0x10];
+    // OBJECTREF m_cancellationToken; // Task's cancellation token, if it has one
+    // int m_internalCancellationRequested; // Its own field because multiple threads legally try to set it.
+    // int m_completionCountdown = 1;
+};
+
+typedef DPTR(class TaskObject) PTR_TaskObject;
+class TaskObject : public Object
+{
+    friend class CoreLibBinder;
+
+public:
+#ifndef DACCESS_COMPILE
+    TaskObject *GetParent()
+    {
+        if (m_contingentProperties != NULL)
+        {
+            OBJECTREF parent = ((ContingentPropertiesObject *)(OBJECTREFToObject(m_contingentProperties)))->m_parent;
+            return (TaskObject *)OBJECTREFToObject(parent);
+        }
+
+        return NULL;
+    }
+#endif // DACCESS_COMPILE
+
+private:
+    OBJECTREF m_action;
+    OBJECTREF m_stateObject;
+    OBJECTREF m_taskScheduler;
+    OBJECTREF m_continuationObject;
+    OBJECTREF m_contingentProperties;
+    int m_taskId;
+    int m_stateFlags;
+
+};
+
 #include "poppack.h"
 
 #ifdef USE_CHECKED_OBJECTREFS

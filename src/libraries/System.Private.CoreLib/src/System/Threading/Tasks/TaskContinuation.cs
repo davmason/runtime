@@ -338,7 +338,7 @@ namespace System.Threading.Tasks
             else
             {
                 // Otherwise, the final state of this task does not match the desired continuation activation criteria; cancel it to denote this.
-                Task.ContingentProperties? cp = continuationTask.m_contingentProperties; // no need to volatile read, as we only care about the token, which is only assignable at construction
+                ContingentProperties? cp = continuationTask.m_contingentProperties; // no need to volatile read, as we only care about the token, which is only assignable at construction
                 if (cp is null || cp.m_cancellationToken == default)
                 {
                     // With no cancellation token, use an optimized path that doesn't need to account for concurrent completion.

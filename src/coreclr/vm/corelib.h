@@ -886,6 +886,29 @@ DEFINE_METHOD(AUTORELEASEPOOL,      DRAINAUTORELEASEPOOL,   DrainAutoreleasePool
 
 DEFINE_CLASS(TIMESPAN,              System,                 TimeSpan)
 
+DEFINE_CLASS(TASK_CONTINGENT_PROPERTIES, Tasks,         ContingentProperties)
+
+DEFINE_CLASS_U(Tasks,                           ContingentProperties,       ContingentPropertiesObject)
+DEFINE_FIELD_U(m_capturedContext,               ContingentPropertiesObject, m_capturedContext)
+DEFINE_FIELD_U(m_completionEvent,               ContingentPropertiesObject, m_completionEvent)
+DEFINE_FIELD_U(m_exceptionsHolder,              ContingentPropertiesObject, m_exceptionsHolder)
+// DEFINE_FIELD_U(m_cancellationToken,             ContingentPropertiesObject, m_cancellationToken)
+DEFINE_FIELD_U(m_cancellationRegistration,      ContingentPropertiesObject, m_cancellationRegistration)
+// DEFINE_FIELD_U(m_internalCancellationRequested, ContingentPropertiesObject, m_internalCancellationRequested)
+// DEFINE_FIELD_U(m_completionCountdown,           ContingentPropertiesObject, m_completionCountdown)
+DEFINE_FIELD_U(m_exceptionalChildren,           ContingentPropertiesObject, m_exceptionalChildren)
+DEFINE_FIELD_U(m_parent,                        ContingentPropertiesObject, m_parent)
+
+DEFINE_CLASS(TASK,                  Tasks,                  Task)
+
+DEFINE_CLASS_U(Tasks,                   Task,                   TaskObject)
+// DEFINE_FIELD_U(m_taskId,                TaskObject,             m_taskId)
+DEFINE_FIELD_U(m_action,                TaskObject,             m_action)
+DEFINE_FIELD_U(m_stateObject,           TaskObject,             m_stateObject)
+DEFINE_FIELD_U(m_taskScheduler,         TaskObject,             m_taskScheduler)
+// DEFINE_FIELD_U(m_stateFlags,            TaskObject,             m_stateFlags)
+DEFINE_FIELD_U(m_continuationObject,    TaskObject,             m_continuationObject)
+DEFINE_FIELD_U(m_contingentProperties,  TaskObject,             m_contingentProperties)
 
 DEFINE_CLASS(TYPE,                  System,                 Type)
 DEFINE_METHOD(TYPE,                 GET_TYPE_FROM_HANDLE,   GetTypeFromHandle,          SM_RuntimeTypeHandle_RetType)
