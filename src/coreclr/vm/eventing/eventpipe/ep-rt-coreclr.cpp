@@ -36,6 +36,7 @@ walk_managed_stack_for_threads (
 
 static MethodTable *pTaskMT = NULL;
 static FieldDesc *pCurrentTaskFD = NULL;
+static MethodDesc *pLogContinuationsMD = NULL;
 
 static
 StackWalkAction
@@ -78,44 +79,6 @@ ep_rt_coreclr_walk_managed_stack_for_thread (
 	// but this contract is not used on CoreCLR.
 	CONTRACT_VIOLATION (HostViolation);
 
-	{
-		GCX_COOP();
-
-		if (pCurrentTaskFD != NULL)
-		{
-			TADDR pCurrentTask = thread->GetStaticFieldAddrNoCreate(pCurrentTaskFD);
-			if (pCurrentTask != NULL)
-			{
-				TaskObject *task_obj = *((TaskObject **)(pCurrentTask));
-				if (task_obj != NULL)
-				{
-					printf("Thread %d has current task %p\n", thread->GetOSThreadId(), task_obj);
-
-					EP_ASSERT (task_obj->GetMethodTable()->IsEquivalentTo(pTaskMT)
-						|| (task_obj->GetMethodTable()->GetMethodTableMatchingParentClass(pTaskMT) != NULL));
-
-					int indent = 0;
-					while(true)
-					{
-						task_obj = task_obj->GetParent();
-						if (task_obj == NULL)
-						{
-							break;
-						}
-
-						++indent;
-						for (int i = 0; i < indent * 4; ++i)
-						{
-							printf(" ");
-						}
-
-						printf("task=%p\n", task_obj);
-					}
-				}
-			}
-		}
-	}
-
 	// Before we call into StackWalkFrames we need to mark GC_ON_TRANSITIONS as FALSE
 	// because under GCStress runs (GCStress=0x3), a GC will be triggered for every transition,
 	// which will cause the GC to try to walk the stack while we are in the middle of walking the stack.
@@ -142,13 +105,6 @@ walk_managed_stack_for_threads (
 {
 	STATIC_CONTRACT_NOTHROW;
 	EP_ASSERT (sampling_thread != NULL);
-
-	// TODO: hacky check that system classes are loaded
-	if (pTaskMT == NULL && g_pThreadClass != NULL)
-	{
-		pTaskMT = CoreLibBinder::GetClass(CLASS__TASK);
-		pCurrentTaskFD = CoreLibBinder::GetField(FIELD__TASK__CURRENT_TASK);
-	}
 
 	Thread *target_thread = NULL;
 
@@ -187,6 +143,49 @@ walk_managed_stack_for_threads (
 	ep_stack_contents_fini (current_stack_contents);
 }
 
+void do_task_walk()
+{
+	// TODO: COOP/PREEMP is a problem I just don't want to think about right now
+	CONTRACT_VIOLATION(HostViolation);
+
+	if (pCurrentTaskFD != NULL && pLogContinuationsMD->GetMethodTable()->IsFullyLoaded())
+	{
+		ThreadStoreLockHolder threadStoreLockHolder;
+
+		Thread *target_thread = NULL;
+		while ((target_thread = ThreadStore::GetThreadList (target_thread)) != NULL)
+		{
+		 	GCX_COOP();
+
+		    struct {
+		        OBJECTREF TaskRef;
+		    } gc;
+		    gc.TaskRef = NULL;
+
+		    GCPROTECT_BEGIN(gc);
+
+			TADDR pCurrentTask = target_thread->GetStaticFieldAddrNoCreate(pCurrentTaskFD);
+			if (pCurrentTask != NULL)
+			{
+				gc.TaskRef = ObjectToOBJECTREF(*((Object **)(pCurrentTask)));
+				if (gc.TaskRef != NULL)
+				{
+				    MethodDescCallSite logContinuations(pLogContinuationsMD);
+				    ARG_SLOT args[2] =
+				    {
+				        (ARG_SLOT)target_thread->GetOSThreadId(),
+				        ObjToArgSlot(gc.TaskRef)
+				    };
+
+				    logContinuations.Call(args);
+				}
+			}
+
+		    GCPROTECT_END();
+		}
+	}
+}
+
 void
 ep_rt_coreclr_sample_profiler_write_sampling_event_for_threads (
 	ep_rt_thread_handle_t sampling_thread,
@@ -198,6 +197,36 @@ ep_rt_coreclr_sample_profiler_write_sampling_event_for_threads (
 	// Check to see if we can suspend managed execution.
 	if (ThreadSuspend::SysIsSuspendInProgress () || (ThreadSuspend::GetSuspensionThread () != 0))
 		return;
+
+	// TODO: hacky check that system classes are loaded
+	if (pTaskMT == NULL && g_pThreadClass != NULL)
+	{
+		pTaskMT = CoreLibBinder::GetClass(CLASS__TASK);
+		pCurrentTaskFD = CoreLibBinder::GetField(FIELD__TASK__CURRENT_TASK);
+		pLogContinuationsMD = CoreLibBinder::GetMethod(METHOD__TASK__LOG_CONTINUATIONS);
+
+		{
+			GCX_COOP();
+			// Call it once to trigger fixups and whatnot outside threadstore lock
+		    MethodDescCallSite logContinuations(pLogContinuationsMD);
+		    ARG_SLOT args[2] =
+		    {
+		        (ARG_SLOT)0,
+		        ObjToArgSlot(NULL)
+		    };
+
+		    logContinuations.Call(args);
+		}
+
+		EP_ASSERT(pTaskMT != NULL);
+		EP_ASSERT(pCurrentTaskFD != NULL);
+		EP_ASSERT(pLogContinuationsMD != NULL);
+	}
+
+	if (pTaskMT != NULL)
+	{
+		do_task_walk();
+	}
 
 	// Actually suspend managed execution.
 	ThreadSuspend::SuspendEE (ThreadSuspend::SUSPEND_REASON::SUSPEND_OTHER);

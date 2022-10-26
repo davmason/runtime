@@ -888,6 +888,7 @@ DEFINE_CLASS(TIMESPAN,              System,                 TimeSpan)
 
 DEFINE_CLASS(TASK,                  Tasks,                  Task)
 DEFINE_FIELD(TASK,                  CURRENT_TASK,           t_currentTask)
+DEFINE_METHOD(TASK,                 LOG_CONTINUATIONS,      LogContinuations,  SM_Int_Obj_RetVoid)
 
 DEFINE_CLASS_U(Tasks,                   Task,                   TaskObject)
 DEFINE_FIELD_U(m_continuationObject,    TaskObject,             m_continuationObject)

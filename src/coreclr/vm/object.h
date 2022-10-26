@@ -2588,7 +2588,7 @@ class TaskObject : public Object
 
 public:
 #ifndef DACCESS_COMPILE
-    OBJECTREF *GetContinuationObject()
+    OBJECTREF GetContinuationObject()
     {
         return m_continuationObject;
     }

@@ -64,82 +64,6 @@ namespace System.Threading.Tasks
         Faulted
     }
 
-    // We moved a number of Task properties into this class.  The idea is that in most cases, these properties never
-    // need to be accessed during the life cycle of a Task, so we don't want to instantiate them every time.  Once
-    // one of these properties needs to be written, we will instantiate a ContingentProperties object and set
-    // the appropriate property.
-    internal sealed class ContingentProperties
-    {
-        // Additional context
-
-        internal ExecutionContext? m_capturedContext; // The execution context to run the task within, if any. Only set from non-concurrent contexts.
-
-        // Completion fields (exceptions and event)
-
-        internal volatile ManualResetEventSlim? m_completionEvent; // Lazily created if waiting is required.
-        internal volatile TaskExceptionHolder? m_exceptionsHolder; // Tracks exceptions, if any have occurred
-
-        // Cancellation fields (token, registration, and internally requested)
-
-        internal CancellationToken m_cancellationToken; // Task's cancellation token, if it has one
-        internal StrongBox<CancellationTokenRegistration>? m_cancellationRegistration; // Task's registration with the cancellation token
-        internal volatile int m_internalCancellationRequested; // Its own field because multiple threads legally try to set it.
-
-        // Parenting fields
-
-        // # of active children + 1 (for this task itself).
-        // Used for ensuring all children are done before this task can complete
-        // The extra count helps prevent the race condition for executing the final state transition
-        // (i.e. whether the last child or this task itself should call FinishStageTwo())
-        internal volatile int m_completionCountdown = 1;
-        // A list of child tasks that threw an exception (TCEs don't count),
-        // but haven't yet been waited on by the parent, lazily initialized.
-        internal volatile List<Task>? m_exceptionalChildren;
-        // A task's parent, or null if parent-less. Only set during Task construction.
-        internal Task? m_parent;
-
-        /// <summary>
-        /// Sets the internal completion event.
-        /// </summary>
-        internal void SetCompleted()
-        {
-            ManualResetEventSlim? mres = m_completionEvent;
-            if (mres != null) SetEvent(mres);
-        }
-
-        internal static void SetEvent(ManualResetEventSlim mres)
-        {
-            try
-            {
-                mres.Set();
-            }
-            catch (ObjectDisposedException)
-            {
-                // The event may have been exposed to external code, in which case it could have been disposed
-                // prematurely / erroneously.  To avoid that causing problems for the unrelated stack trying to
-                // set the event, eat any disposed exceptions.
-            }
-        }
-
-        /// <summary>
-        /// Checks if we registered a CT callback during construction, and unregisters it.
-        /// This should be called when we know the registration isn't useful anymore. Specifically from Finish() if the task has completed
-        /// successfully or with an exception.
-        /// </summary>
-        internal void UnregisterCancellationCallback()
-        {
-            if (m_cancellationRegistration != null)
-            {
-                // Harden against ODEs thrown from disposing of the CTR.
-                // Since the task has already been put into a final state by the time this
-                // is called, all we can do here is suppress the exception.
-                try { m_cancellationRegistration.Value.Dispose(); }
-                catch (ObjectDisposedException) { }
-                m_cancellationRegistration = null;
-            }
-        }
-    }
-
     /// <summary>
     /// Represents an asynchronous operation.
     /// </summary>
@@ -246,6 +170,19 @@ namespace System.Threading.Tasks
         // Values for ContingentProperties.m_internalCancellationRequested.
         private const int CANCELLATION_REQUESTED = 0x1;
 
+        private static void LogContinuations(int threadId, object? currentThreadTaskObj)
+        {
+            if (currentThreadTaskObj == null)
+            {
+                Task fakeTask = new Task(Internal.Console.WriteLine);
+                Internal.Console.WriteLine($"Load these classes! {fakeTask.Id}");
+                return;
+            }
+
+            Task currentTask = (Task)currentThreadTaskObj;
+            Internal.Console.WriteLine($"Saw task with id {currentTask.Id} on thread {threadId}");
+        }
+
         // Can be null, a single continuation, a list of continuations, or s_taskCompletionSentinel,
         // in that order. The logic arround this object assumes it will never regress to a previous state.
         private volatile object? m_continuationObject; // SOS DumpAsync command depends on this name
@@ -260,6 +197,82 @@ namespace System.Threading.Tasks
         // This dictonary relates the task id, from an operation id located in the Async Causality log to the actual
         // task. This is to be used by the debugger ONLY. Task in this dictionary represent current active tasks.
         private static Dictionary<int, Task>? s_currentActiveTasks;
+
+        // We moved a number of Task properties into this class.  The idea is that in most cases, these properties never
+        // need to be accessed during the life cycle of a Task, so we don't want to instantiate them every time.  Once
+        // one of these properties needs to be written, we will instantiate a ContingentProperties object and set
+        // the appropriate property.
+        internal sealed class ContingentProperties
+        {
+            // Additional context
+
+            internal ExecutionContext? m_capturedContext; // The execution context to run the task within, if any. Only set from non-concurrent contexts.
+
+            // Completion fields (exceptions and event)
+
+            internal volatile ManualResetEventSlim? m_completionEvent; // Lazily created if waiting is required.
+            internal volatile TaskExceptionHolder? m_exceptionsHolder; // Tracks exceptions, if any have occurred
+
+            // Cancellation fields (token, registration, and internally requested)
+
+            internal CancellationToken m_cancellationToken; // Task's cancellation token, if it has one
+            internal StrongBox<CancellationTokenRegistration>? m_cancellationRegistration; // Task's registration with the cancellation token
+            internal volatile int m_internalCancellationRequested; // Its own field because multiple threads legally try to set it.
+
+            // Parenting fields
+
+            // # of active children + 1 (for this task itself).
+            // Used for ensuring all children are done before this task can complete
+            // The extra count helps prevent the race condition for executing the final state transition
+            // (i.e. whether the last child or this task itself should call FinishStageTwo())
+            internal volatile int m_completionCountdown = 1;
+            // A list of child tasks that threw an exception (TCEs don't count),
+            // but haven't yet been waited on by the parent, lazily initialized.
+            internal volatile List<Task>? m_exceptionalChildren;
+            // A task's parent, or null if parent-less. Only set during Task construction.
+            internal Task? m_parent;
+
+            /// <summary>
+            /// Sets the internal completion event.
+            /// </summary>
+            internal void SetCompleted()
+            {
+                ManualResetEventSlim? mres = m_completionEvent;
+                if (mres != null) SetEvent(mres);
+            }
+
+            internal static void SetEvent(ManualResetEventSlim mres)
+            {
+                try
+                {
+                    mres.Set();
+                }
+                catch (ObjectDisposedException)
+                {
+                    // The event may have been exposed to external code, in which case it could have been disposed
+                    // prematurely / erroneously.  To avoid that causing problems for the unrelated stack trying to
+                    // set the event, eat any disposed exceptions.
+                }
+            }
+
+            /// <summary>
+            /// Checks if we registered a CT callback during construction, and unregisters it.
+            /// This should be called when we know the registration isn't useful anymore. Specifically from Finish() if the task has completed
+            /// successfully or with an exception.
+            /// </summary>
+            internal void UnregisterCancellationCallback()
+            {
+                if (m_cancellationRegistration != null)
+                {
+                    // Harden against ODEs thrown from disposing of the CTR.
+                    // Since the task has already been put into a final state by the time this
+                    // is called, all we can do here is suppress the exception.
+                    try { m_cancellationRegistration.Value.Dispose(); }
+                    catch (ObjectDisposedException) { }
+                    m_cancellationRegistration = null;
+                }
+            }
+        }
 
         // This field will only be instantiated to some non-null value if any ContingentProperties need to be set.
         // This will be a ContingentProperties instance or a type derived from it
