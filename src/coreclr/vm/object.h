@@ -2581,27 +2581,6 @@ enum TaskStateFlags
     OptionsMask = 0xFFFF,                    // signifies the Options portion of m_stateFlags bin: 0000 0000 0000 0000 1111 1111 1111 1111
 };
 
-typedef DPTR(class TaskObject) PTR_ContingentPropertiesObject;
-class ContingentPropertiesObject : public Object
-{
-    friend class CoreLibBinder;
-    friend class TaskObject;
-
-public:
-
-private:
-    OBJECTREF m_capturedContext; // The execution context to run the task within, if any. Only set from non-concurrent contexts.
-    OBJECTREF m_completionEvent; // Lazily created if waiting is required.
-    OBJECTREF m_exceptionsHolder; // Tracks exceptions, if any have occurred
-    OBJECTREF m_cancellationRegistration; // Task's registration with the cancellation token
-    OBJECTREF m_exceptionalChildren;
-    OBJECTREF m_parent;
-    BYTE unused[0x10];
-    // OBJECTREF m_cancellationToken; // Task's cancellation token, if it has one
-    // int m_internalCancellationRequested; // Its own field because multiple threads legally try to set it.
-    // int m_completionCountdown = 1;
-};
-
 typedef DPTR(class TaskObject) PTR_TaskObject;
 class TaskObject : public Object
 {
@@ -2609,15 +2588,9 @@ class TaskObject : public Object
 
 public:
 #ifndef DACCESS_COMPILE
-    TaskObject *GetParent()
+    OBJECTREF *GetContinuationObject()
     {
-        if (m_contingentProperties != NULL)
-        {
-            OBJECTREF parent = ((ContingentPropertiesObject *)(OBJECTREFToObject(m_contingentProperties)))->m_parent;
-            return (TaskObject *)OBJECTREFToObject(parent);
-        }
-
-        return NULL;
+        return m_continuationObject;
     }
 #endif // DACCESS_COMPILE
 
@@ -2629,7 +2602,6 @@ private:
     OBJECTREF m_contingentProperties;
     int m_taskId;
     int m_stateFlags;
-
 };
 
 #include "poppack.h"
