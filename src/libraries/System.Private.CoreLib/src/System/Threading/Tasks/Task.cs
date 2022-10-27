@@ -64,6 +64,82 @@ namespace System.Threading.Tasks
         Faulted
     }
 
+    [EventSource(Name = "Microsoft-Task-ContinuationEventSource")]
+    internal sealed class TaskContinuationEventSource : EventSource
+    {
+        internal static readonly TaskContinuationEventSource Log = new();
+
+        private Thread? m_samplingThread;
+
+        private TaskContinuationEventSource() : base(true)
+        {
+            WriteMessage("Constructor!");
+        }
+
+        [NonEvent]
+        private void EnableSampling()
+        {
+            if (m_samplingThread == null)
+            {
+                Thread t = new Thread(DoSampling);
+                if (Interlocked.CompareExchange(ref m_samplingThread, t, null) == null)
+                {
+                    t.IsBackground = true;
+                    t.Start();
+                }
+            }
+        }
+
+        [NonEvent]
+        private void DoSampling()
+        {
+            while (true)
+            {
+                Thread.Sleep(100);
+                WriteMessage("Sample!");
+                TaskHelpers.GetAllTasks(out int[] threadIds, out Task[] tasks);
+
+                for (int i = 0; i < threadIds.Length; ++i)
+                {
+                    WriteMessage($"Thread {threadIds[i]} has task with id {tasks[i].Id}");
+                    TaskEvent(threadIds[i], tasks[i].Id);
+                }
+            }
+        }
+
+        [NonEvent]
+        protected override void OnEventCommand(EventCommandEventArgs command)
+        {
+            base.OnEventCommand(command);
+
+            WriteMessage($"Got command {command.Command}.");
+            if (command.Command == EventCommand.Enable)
+            {
+                WriteMessage("Got enable command, starting thread.");
+                EnableSampling();
+            }
+        }
+
+        [Event(1)]
+        public void TaskEvent(int threadId, int taskId)
+        {
+            WriteEvent(1, taskId, threadId);
+        }
+
+        [Event(3)]
+        public void WriteMessage(string message)
+        {
+            Internal.Console.WriteLine(message);
+            WriteEvent(3, message);
+        }
+    }
+
+    internal static class TaskHelpers
+    {
+        [MethodImpl(MethodImplOptions.InternalCall)]
+        internal static extern void GetAllTasks(out int[] threadIds, out Task[] currentTasks);
+    }
+
     /// <summary>
     /// Represents an asynchronous operation.
     /// </summary>
@@ -114,6 +190,9 @@ namespace System.Threading.Tasks
     [DebuggerDisplay("Id = {Id}, Status = {Status}, Method = {DebuggerDisplayMethodDescription}")]
     public class Task : IAsyncResult, IDisposable
     {
+        // Make sure it's initialized
+        internal static TaskContinuationEventSource s_source = TaskContinuationEventSource.Log;
+
         [ThreadStatic]
         internal static Task? t_currentTask;  // The currently executing task.
 
@@ -170,17 +249,8 @@ namespace System.Threading.Tasks
         // Values for ContingentProperties.m_internalCancellationRequested.
         private const int CANCELLATION_REQUESTED = 0x1;
 
-        private static void LogContinuations(int threadId, object? currentThreadTaskObj)
+        internal static void LogContinuations(int threadId, object? currentThreadTaskObj)
         {
-            if (currentThreadTaskObj == null)
-            {
-                Task fakeTask = new Task(Internal.Console.WriteLine);
-                Internal.Console.WriteLine($"Load these classes! {fakeTask.Id}");
-                return;
-            }
-
-            Task currentTask = (Task)currentThreadTaskObj;
-            Internal.Console.WriteLine($"Saw task with id {currentTask.Id} on thread {threadId}");
         }
 
         // Can be null, a single continuation, a list of continuations, or s_taskCompletionSentinel,

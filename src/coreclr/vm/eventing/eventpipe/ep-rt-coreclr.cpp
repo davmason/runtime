@@ -143,48 +143,104 @@ walk_managed_stack_for_threads (
 	ep_stack_contents_fini (current_stack_contents);
 }
 
-void do_task_walk()
+template<typename T> 
+static void AssignArrayElement(T *dest, T source)
 {
-	// TODO: COOP/PREEMP is a problem I just don't want to think about right now
-	CONTRACT_VIOLATION(HostViolation);
+	*dest = source;
+}
 
-	if (pCurrentTaskFD != NULL && pLogContinuationsMD->GetMethodTable()->IsFullyLoaded())
+template<> 
+void AssignArrayElement(OBJECTREF *dest, OBJECTREF source)
+{
+	SetObjectReference(dest, source);
+}
+
+template<typename T>
+static OBJECTREF AllocateAndAssignArray(MethodTable *pMT, CDynArray<T> &array)
+{
+	CONTRACTL
 	{
+		MODE_COOPERATIVE;
+	}
+	CONTRACTL_END
+
+	MethodTable *pArrayMT = TypeHandle(pMT).MakeSZArray().AsMethodTable();
+
+    EP_ASSERT(pArrayMT->GetComponentSize() == sizeof(T));
+
+	BASEARRAYREF pArray = (BASEARRAYREF)AllocateSzArray(pArrayMT, (INT32)array.Count());
+
+    DWORD numElements = pArray->GetNumComponents();
+    T *pDestination = (T *)(pArray->GetDataPtr());
+
+    for (DWORD i = 0; i < numElements; ++i)
+    {
+    	AssignArrayElement<T>(pDestination + i, array[i]);
+    }
+
+    return pArray;
+}
+
+FCIMPL2(void, TaskHelpers::GetAllTasks, Object **pThreadIdsUnsafe, Object **pTasksUnsafe)
+{
+    FCALL_CONTRACT;
+    CONTRACTL
+    {
+        FCALL_CHECK;
+    }
+    CONTRACTL_END;
+
+    ASSERT(pThreadIdsUnsafe != NULL);
+    ASSERT(pTasksUnsafe != NULL);
+
+    struct
+    {
+        PTRARRAYREF idArray;
+        PTRARRAYREF taskArray;
+    } gc;
+
+    gc.idArray = NULL;
+    gc.taskArray = NULL;
+
+    // GC protect the array reference
+    // TODO: don't actually need the gc protection since this is all in COOP
+    HELPER_METHOD_FRAME_BEGIN_PROTECT(gc);
+	
+	CDynArray<INT32> threadIds;
+	CDynArray<OBJECTREF> tasks;
+	{
+		GCX_COOP();
 		ThreadStoreLockHolder threadStoreLockHolder;
 
 		Thread *target_thread = NULL;
 		while ((target_thread = ThreadStore::GetThreadList (target_thread)) != NULL)
 		{
-		 	GCX_COOP();
-
-		    struct {
-		        OBJECTREF TaskRef;
-		    } gc;
-		    gc.TaskRef = NULL;
-
-		    GCPROTECT_BEGIN(gc);
-
-			TADDR pCurrentTask = target_thread->GetStaticFieldAddrNoCreate(pCurrentTaskFD);
+			TADDR pCurrentTask = target_thread->GetStaticFieldAddrNoCreate(CoreLibBinder::GetField(FIELD__TASK__CURRENT_TASK));
 			if (pCurrentTask != NULL)
 			{
-				gc.TaskRef = ObjectToOBJECTREF(*((Object **)(pCurrentTask)));
-				if (gc.TaskRef != NULL)
+				OBJECTREF currentTask = ObjectToOBJECTREF(*((Object **)(pCurrentTask)));
+				if (currentTask != NULL)
 				{
-				    MethodDescCallSite logContinuations(pLogContinuationsMD);
-				    ARG_SLOT args[2] =
-				    {
-				        (ARG_SLOT)target_thread->GetOSThreadId(),
-				        ObjToArgSlot(gc.TaskRef)
-				    };
-
-				    logContinuations.Call(args);
+					INT32 *pThreadId = threadIds.Append();
+					OBJECTREF *pObjRef = tasks.Append();
+					*pThreadId = target_thread->GetOSThreadId();
+					*pObjRef = currentTask;
 				}
 			}
-
-		    GCPROTECT_END();
 		}
+
+		EP_ASSERT(threadIds.Count() == tasks.Count());
+
+	    gc.idArray = AllocateAndAssignArray(CoreLibBinder::GetClass(CLASS__INT32), threadIds);
+	    gc.taskArray = AllocateAndAssignArray(CoreLibBinder::GetClass(CLASS__TASK), tasks);
 	}
+
+	*pThreadIdsUnsafe = OBJECTREFToObject(gc.idArray);
+	*pTasksUnsafe = OBJECTREFToObject(gc.taskArray);
+
+    HELPER_METHOD_FRAME_END();
 }
+FCIMPLEND
 
 void
 ep_rt_coreclr_sample_profiler_write_sampling_event_for_threads (
@@ -197,36 +253,6 @@ ep_rt_coreclr_sample_profiler_write_sampling_event_for_threads (
 	// Check to see if we can suspend managed execution.
 	if (ThreadSuspend::SysIsSuspendInProgress () || (ThreadSuspend::GetSuspensionThread () != 0))
 		return;
-
-	// TODO: hacky check that system classes are loaded
-	if (pTaskMT == NULL && g_pThreadClass != NULL)
-	{
-		pTaskMT = CoreLibBinder::GetClass(CLASS__TASK);
-		pCurrentTaskFD = CoreLibBinder::GetField(FIELD__TASK__CURRENT_TASK);
-		pLogContinuationsMD = CoreLibBinder::GetMethod(METHOD__TASK__LOG_CONTINUATIONS);
-
-		{
-			GCX_COOP();
-			// Call it once to trigger fixups and whatnot outside threadstore lock
-		    MethodDescCallSite logContinuations(pLogContinuationsMD);
-		    ARG_SLOT args[2] =
-		    {
-		        (ARG_SLOT)0,
-		        ObjToArgSlot(NULL)
-		    };
-
-		    logContinuations.Call(args);
-		}
-
-		EP_ASSERT(pTaskMT != NULL);
-		EP_ASSERT(pCurrentTaskFD != NULL);
-		EP_ASSERT(pLogContinuationsMD != NULL);
-	}
-
-	if (pTaskMT != NULL)
-	{
-		do_task_walk();
-	}
 
 	// Actually suspend managed execution.
 	ThreadSuspend::SuspendEE (ThreadSuspend::SUSPEND_REASON::SUSPEND_OTHER);
