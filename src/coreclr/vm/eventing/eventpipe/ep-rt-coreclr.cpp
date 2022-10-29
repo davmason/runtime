@@ -143,45 +143,7 @@ walk_managed_stack_for_threads (
 	ep_stack_contents_fini (current_stack_contents);
 }
 
-template<typename T> 
-static void AssignArrayElement(T *dest, T source)
-{
-	*dest = source;
-}
-
-template<> 
-void AssignArrayElement(OBJECTREF *dest, OBJECTREF source)
-{
-	SetObjectReference(dest, source);
-}
-
-template<typename T>
-static OBJECTREF AllocateAndAssignArray(MethodTable *pMT, CDynArray<T> &array)
-{
-	CONTRACTL
-	{
-		MODE_COOPERATIVE;
-	}
-	CONTRACTL_END
-
-	MethodTable *pArrayMT = TypeHandle(pMT).MakeSZArray().AsMethodTable();
-
-    EP_ASSERT(pArrayMT->GetComponentSize() == sizeof(T));
-
-	BASEARRAYREF pArray = (BASEARRAYREF)AllocateSzArray(pArrayMT, (INT32)array.Count());
-
-    DWORD numElements = pArray->GetNumComponents();
-    T *pDestination = (T *)(pArray->GetDataPtr());
-
-    for (DWORD i = 0; i < numElements; ++i)
-    {
-    	AssignArrayElement<T>(pDestination + i, array[i]);
-    }
-
-    return pArray;
-}
-
-FCIMPL2(void, TaskHelpers::GetAllTasks, Object **pThreadIdsUnsafe, Object **pTasksUnsafe)
+FCIMPL2(void, TaskHelpers::GetAllTasks, Object *pThreadIdsUnsafe, Object *pTasksUnsafe)
 {
     FCALL_CONTRACT;
     CONTRACTL
@@ -193,50 +155,41 @@ FCIMPL2(void, TaskHelpers::GetAllTasks, Object **pThreadIdsUnsafe, Object **pTas
     ASSERT(pThreadIdsUnsafe != NULL);
     ASSERT(pTasksUnsafe != NULL);
 
-    struct
-    {
-        PTRARRAYREF idArray;
-        PTRARRAYREF taskArray;
-    } gc;
+	BASEARRAYREF pThreadArray = (BASEARRAYREF)ObjectToOBJECTREF(pThreadIdsUnsafe);
+	BASEARRAYREF pTaskArray = (BASEARRAYREF)ObjectToOBJECTREF(pTasksUnsafe);
 
-    gc.idArray = NULL;
-    gc.taskArray = NULL;
+	HELPER_METHOD_FRAME_BEGIN_2(pThreadArray, pTaskArray);
 
-    // GC protect the array reference
-    // TODO: don't actually need the gc protection since this is all in COOP
-    HELPER_METHOD_FRAME_BEGIN_PROTECT(gc);
-	
-	CDynArray<INT32> threadIds;
-	CDynArray<OBJECTREF> tasks;
 	{
 		GCX_COOP();
 		ThreadStoreLockHolder threadStoreLockHolder;
 
+		SIZE_T pos = 0;
 		Thread *target_thread = NULL;
 		while ((target_thread = ThreadStore::GetThreadList (target_thread)) != NULL)
 		{
+			if (pos >= pThreadArray->GetNumComponents())
+			{
+				// TODO: don't just drop stuff silently
+				break;
+			}
+
 			TADDR pCurrentTask = target_thread->GetStaticFieldAddrNoCreate(CoreLibBinder::GetField(FIELD__TASK__CURRENT_TASK));
 			if (pCurrentTask != NULL)
 			{
 				OBJECTREF currentTask = ObjectToOBJECTREF(*((Object **)(pCurrentTask)));
 				if (currentTask != NULL)
 				{
-					INT32 *pThreadId = threadIds.Append();
-					OBJECTREF *pObjRef = tasks.Append();
+					DWORD *pThreadId = ((DWORD *)pThreadArray->GetDataPtr()) + pos;
 					*pThreadId = target_thread->GetOSThreadId();
-					*pObjRef = currentTask;
+					OBJECTREF *pTask = ((OBJECTREF *)pTaskArray->GetDataPtr()) + pos;
+					SetObjectReference(pTask, currentTask);
+
+					++pos;
 				}
 			}
 		}
-
-		EP_ASSERT(threadIds.Count() == tasks.Count());
-
-	    gc.idArray = AllocateAndAssignArray(CoreLibBinder::GetClass(CLASS__INT32), threadIds);
-	    gc.taskArray = AllocateAndAssignArray(CoreLibBinder::GetClass(CLASS__TASK), tasks);
 	}
-
-	*pThreadIdsUnsafe = OBJECTREFToObject(gc.idArray);
-	*pTasksUnsafe = OBJECTREFToObject(gc.taskArray);
 
     HELPER_METHOD_FRAME_END();
 }
@@ -254,6 +207,11 @@ ep_rt_coreclr_sample_profiler_write_sampling_event_for_threads (
 	if (ThreadSuspend::SysIsSuspendInProgress () || (ThreadSuspend::GetSuspensionThread () != 0))
 		return;
 
+    // LARGE_INTEGER large = { 0 };
+
+    // QueryPerformanceCounter(&large);
+    // INT64 startTicks = large.QuadPart;
+
 	// Actually suspend managed execution.
 	ThreadSuspend::SuspendEE (ThreadSuspend::SUSPEND_REASON::SUSPEND_OTHER);
 
@@ -263,6 +221,14 @@ ep_rt_coreclr_sample_profiler_write_sampling_event_for_threads (
 	// Resume managed execution.
 	ThreadSuspend::RestartEE (FALSE /* bFinishedGC */, TRUE /* SuspendSucceeded */);
 
+	// QueryPerformanceCounter(&large);
+	// INT64 endTicks = large.QuadPart;
+
+    // QueryPerformanceFrequency(&large);
+    // INT64 ticksPerUSec = large.QuadPart / (1000 * 1000);
+    // INT64 usecs = (endTicks - startTicks) / ticksPerUSec;
+
+    // printf("Sync stack walk took %lld us\n", usecs);
 	return;
 }
 

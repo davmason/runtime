@@ -9,12 +9,19 @@
 //
 // =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
+using System.Buffers;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Diagnostics.Tracing;
+using System.Reflection;
+using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
 using System.Runtime.Versioning;
+using System.Text;
+using static System.DateTimeParse;
 
 namespace System.Threading.Tasks
 {
@@ -64,16 +71,19 @@ namespace System.Threading.Tasks
         Faulted
     }
 
-    [EventSource(Name = "Microsoft-Task-ContinuationEventSource")]
+    [EventSource(Name = "Microsoft-TaskContinuation-EventSource")]
     internal sealed class TaskContinuationEventSource : EventSource
     {
         internal static readonly TaskContinuationEventSource Log = new();
 
         private Thread? m_samplingThread;
+        private volatile bool m_sampling;
+        private ManualResetEvent? m_sampleEvent;
 
-        private TaskContinuationEventSource() : base(true)
+        private TaskContinuationEventSource() :
+            base(EventSourceSettings.EtwSelfDescribingEventFormat | EventSourceSettings.ThrowOnEventWriteErrors)
         {
-            WriteMessage("Constructor!");
+            //Internal.Console.WriteLine("Constructor!");
         }
 
         [NonEvent]
@@ -84,26 +94,52 @@ namespace System.Threading.Tasks
                 Thread t = new Thread(DoSampling);
                 if (Interlocked.CompareExchange(ref m_samplingThread, t, null) == null)
                 {
+                    m_sampleEvent = new ManualResetEvent(false);
                     t.IsBackground = true;
                     t.Start();
                 }
             }
+
+            m_sampling = true;
+            m_sampleEvent?.Set();
         }
 
         [NonEvent]
         private void DoSampling()
         {
+            int[] threadIds = new int[100];
+            Task?[] tasks = new Task[100];
+            Stopwatch sw = Stopwatch.StartNew();
             while (true)
             {
-                Thread.Sleep(100);
-                WriteMessage("Sample!");
-                TaskHelpers.GetAllTasks(out int[] threadIds, out Task[] tasks);
+                if (!m_sampling)
+                {
+                    m_sampleEvent?.WaitOne();
+                }
+
+                Thread.Sleep(500);
+                sw.Restart();
+
+                Array.Clear(threadIds);
+                Array.Clear(tasks);
+                //Internal.Console.WriteLine("Sample!");
+                TaskHelpers.GetAllTasks(threadIds, tasks);
 
                 for (int i = 0; i < threadIds.Length; ++i)
                 {
-                    WriteMessage($"Thread {threadIds[i]} has task with id {tasks[i].Id}");
-                    TaskEvent(threadIds[i], tasks[i].Id);
+                    int threadId = threadIds[i];
+                    Task? t = tasks[i];
+                    //Internal.Console.WriteLine($"tid 0x{threadId:X} taskId{t?.Id}");
+                    if (threadId == 0 || t == null)
+                    {
+                        Internal.Console.WriteLine("here");
+                        break;
+                    }
+
+                    Task.LogContinuations(threadId, t);
                 }
+                //Internal.Console.WriteLine("End Sample");
+                //Internal.Console.WriteLine($"Async sample took {sw.Elapsed.TotalMicroseconds:N0} us");
             }
         }
 
@@ -112,16 +148,21 @@ namespace System.Threading.Tasks
         {
             base.OnEventCommand(command);
 
-            WriteMessage($"Got command {command.Command}.");
+            Internal.Console.WriteLine($"Got command {command.Command}.");
             if (command.Command == EventCommand.Enable)
             {
-                WriteMessage("Got enable command, starting thread.");
+                //Internal.Console.WriteLine("Got enable command, starting thread.");
                 EnableSampling();
+            }
+            else if (command.Command == EventCommand.Disable)
+            {
+                m_sampling = false;
+                m_sampleEvent?.Reset();
             }
         }
 
         [Event(1)]
-        public void TaskEvent(int threadId, int taskId)
+        public void ActiveTaskOnThread(int threadId, int taskId)
         {
             WriteEvent(1, taskId, threadId);
         }
@@ -129,15 +170,29 @@ namespace System.Threading.Tasks
         [Event(3)]
         public void WriteMessage(string message)
         {
-            Internal.Console.WriteLine(message);
+            //Internal.Console.WriteLine(message);
             WriteEvent(3, message);
+        }
+
+        [UnconditionalSuppressMessage("ReflectionAnalysis", "IL2026:UnrecognizedReflectionPattern",
+                   Justification = "Primitive types")]
+        [Event(4)]
+        public unsafe void Sample(int threadId, long duration, int countIps, byte[] ips)
+        {
+            WriteEvent(4, threadId, duration, countIps, ips);
+        }
+
+        [Event(5)]
+        public void SampleHumanReadable(int threadId, string sample)
+        {
+            WriteEvent(5, threadId, sample);
         }
     }
 
     internal static class TaskHelpers
     {
         [MethodImpl(MethodImplOptions.InternalCall)]
-        internal static extern void GetAllTasks(out int[] threadIds, out Task[] currentTasks);
+        internal static extern void GetAllTasks(object threadIdArray, object currentTaskArray);
     }
 
     /// <summary>
@@ -249,8 +304,277 @@ namespace System.Threading.Tasks
         // Values for ContingentProperties.m_internalCancellationRequested.
         private const int CANCELLATION_REQUESTED = 0x1;
 
-        internal static void LogContinuations(int threadId, object? currentThreadTaskObj)
+        private struct GetterKey : IEquatable<GetterKey>
         {
+            internal readonly Type type;
+            internal readonly string fieldName;
+
+            internal GetterKey(Type type, string fieldName)
+            {
+                this.type = type;
+                this.fieldName = fieldName;
+            }
+
+            public override bool Equals([NotNullWhen(true)] object? obj)
+            {
+                if (obj == null)
+                {
+                    return false;
+                }
+
+                if (obj is GetterKey other)
+                {
+                    return Equals(other);
+                }
+
+                return false;
+            }
+
+            public bool Equals(GetterKey other) => (other.type == type) && (other.fieldName == fieldName);
+
+            public override int GetHashCode()
+            {
+                return type.GetHashCode() ^ fieldName.GetHashCode();
+            }
+        }
+        private static Dictionary<GetterKey, Func<object, object>?> _optimizedGetters = new();
+
+        private static bool GetFieldFromObject(object? obj, string fieldName, out object? value)
+        {
+            value = null;
+            if (obj == null)
+            {
+                return false;
+            }
+
+            GetterKey key = new(obj.GetType(), fieldName);
+            Func<object, object>? getFieldAction;
+            if (!_optimizedGetters.TryGetValue(key, out getFieldAction))
+            {
+                FieldInfo? fieldInfo = obj.GetType().GetField(fieldName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                if (fieldInfo == null)
+                {
+                    _optimizedGetters.Add(key, null);
+                }
+                else
+                {
+                    Type[] methodArgs = { obj.GetType() };
+                    string methodName = $"get{fieldName}From{key.type.Name}";
+                    DynamicMethod fetcher = new(methodName, typeof(object), methodArgs);
+                    ILGenerator il = fetcher.GetILGenerator();
+                    il.Emit(OpCodes.Ldarg_0);
+                    il.Emit(OpCodes.Ldfld, fieldInfo);
+                    il.Emit(OpCodes.Ret);
+
+                    getFieldAction = (Func<object, object>)fetcher.CreateDelegate(typeof(Func<object, object>));
+                    _optimizedGetters.Add(key, getFieldAction);
+                }
+            }
+
+            if (getFieldAction == null)
+            {
+                return false;
+            }
+
+            value = getFieldAction(obj);
+
+            //value = fieldInfo?.GetValue(obj);
+            return value != null;
+        }
+
+        private static bool ResolveContinuation(object? continuation, out object? resolvedContinuation)
+        {
+            resolvedContinuation = null;
+            if (continuation == null)
+            {
+                return false;
+            }
+
+            if (continuation == s_taskCompletionSentinel || continuation is Action || continuation is IAsyncStateMachineBox)
+            {
+                resolvedContinuation = continuation;
+                return true;
+            }
+
+            // If it's a standard task continuation, get its task field.
+            if (GetFieldFromObject(continuation, "m_task", out resolvedContinuation))
+            {
+                return true;
+            }
+
+            object? tmp;
+            // If it's storing an action wrapper, try to follow to that action's target.
+            if (GetFieldFromObject(resolvedContinuation, "m_action", out tmp))
+            {
+                resolvedContinuation = tmp;
+            }
+
+            // If we now have an Action, try to follow through to the delegate's target.
+            if (GetFieldFromObject(resolvedContinuation, "_target", out tmp))
+            {
+                resolvedContinuation = tmp;
+
+                // In some cases, the delegate's target might be a ContinuationWrapper, in which case we want to unwrap that as well.
+                if (resolvedContinuation?.GetType()?.Name == "System.Runtime.CompilerServices.AsyncMethodBuilderCore+ContinuationWrapper" &&
+                    GetFieldFromObject(resolvedContinuation, "_continuation", out tmp))
+                {
+                    resolvedContinuation = tmp;
+                    if (GetFieldFromObject(resolvedContinuation, "_target", out tmp))
+                    {
+                        resolvedContinuation = tmp;
+                    }
+                }
+            }
+
+            return resolvedContinuation != null;
+        }
+
+//        private static ulong GetIpFromDelegate(object? delObj)
+//        {
+//#if !NATIVEAOT
+//            if (delObj is Delegate d)
+//            {
+//                return d.GetTarget();
+//            }
+//#endif
+//            return 0;
+//        }
+
+        private static string SimpleName(Type? type)
+        {
+            if (type == null)
+            {
+                return "null";
+            }
+
+            StringBuilder builder = new StringBuilder();
+            builder.Append(type.Name);
+            if (type.GenericTypeArguments.Length > 0)
+            {
+                builder.Append('<');
+                for (int i = 0; i < type.GenericTypeArguments.Length; ++i)
+                {
+                    builder.Append(type.GenericTypeArguments[i].Name);
+                    if (i < (type.GenericTypeArguments.Length - 1))
+                    {
+                        builder.Append(", ");
+                    }
+                }
+                builder.Append('>');
+            }
+
+            return builder.ToString();
+        }
+
+        private static void DoAsyncSample(int indent, object? continuationObj, List<Delegate> actions, StringBuilder? stringBuilder)
+        {
+            Debug.Assert(continuationObj != null);
+
+            for (int i = 0; i < indent; ++i)
+            {
+                stringBuilder?.Append('.');
+            }
+
+            if (continuationObj == s_taskCompletionSentinel)
+            {
+                stringBuilder?.AppendLine("s_taskCompletionSentinel");
+                return;
+            }
+
+            // The common continuation types
+            object? resolvedContinuation;
+            switch (continuationObj)
+            {
+                case Task t:
+                    string actionString = string.Empty;
+                    if (t is IAsyncStateMachineBox asm)
+                    {
+                        IAsyncStateMachine sm = asm.GetStateMachineObject();
+                        actionString = SimpleName(sm.GetType());
+                        actions.Add(new Action(sm.MoveNext));
+                    }
+                    else
+                    {
+                        actionString = SimpleName(t?.m_action?.GetType());
+                        if (t?.m_action is Delegate d)
+                        {
+                            actions.Add(d);
+                        }
+                    }
+
+                    object? taskContinuationObj = t?.m_continuationObject;
+                    stringBuilder?.AppendLine($"Task ({SimpleName(t?.GetType())}): Id={t?.Id} m_action={actionString} cont={SimpleName(taskContinuationObj?.GetType())}");
+                    if (taskContinuationObj != null)
+                    {
+                        DoAsyncSample(indent + 1, taskContinuationObj, actions, stringBuilder);
+                    }
+                    return;
+                case Action a:
+                    actions.Add(a);
+                    stringBuilder?.AppendLine($"Action: {SimpleName(a.Target?.GetType())}");
+                    return;
+                case TaskContinuation:
+                case ITaskCompletionAction:
+                    if (ResolveContinuation(continuationObj, out resolvedContinuation))
+                    {
+                        DoAsyncSample(indent, resolvedContinuation, actions, stringBuilder);
+                    }
+                    else
+                    {
+                        stringBuilder?.AppendLine($"Could not resolve continuation for {continuationObj}");
+                    }
+                    return;
+            }
+
+            stringBuilder?.AppendLine($"Assuming list {continuationObj.GetType()}");
+            // Must be a list.
+            List<object?> continuations = (List<object?>)continuationObj;
+            foreach (object? obj in continuations)
+            {
+                if (obj != null)
+                {
+                    DoAsyncSample(indent + 1, obj, actions, stringBuilder);
+                }
+            }
+
+            stringBuilder?.AppendLine();
+        }
+
+        internal static void LogContinuations(int threadId, Task? currentThreadTask)
+        {
+#if !NATIVEAOT
+            if (currentThreadTask == null)
+            {
+                return;
+            }
+
+            Stopwatch sw = Stopwatch.StartNew();
+            //Internal.Console.WriteLine($"Thread {threadId} has task with id {currentThreadTask.Id}");
+            TaskContinuationEventSource.Log.ActiveTaskOnThread(threadId, currentThreadTask?.Id ?? 0);
+
+            List<Delegate> actions = new List<Delegate>();
+            //StringBuilder stringBuilder = new StringBuilder();
+            DoAsyncSample(0, currentThreadTask, actions, null);
+
+            int maxItems = 512;
+            int arraySize = maxItems * 12;
+            byte[] buffer = ArrayPool<byte>.Shared.Rent(arraySize);
+            Array.Clear(buffer);
+            for (int i = 0; i < actions.Count; ++i)
+            {
+                // Write method token
+                Span<byte> byteSpan = new Span<byte>(buffer, i * 12, 4);
+                BinaryPrimitives.WriteInt32LittleEndian(byteSpan, actions[i].Method.MetadataToken);
+                // Now module token
+                byteSpan = new Span<byte>(buffer, (i * 12) + 4, 8);
+                BinaryPrimitives.WriteUInt64LittleEndian(byteSpan, (ulong)actions[i].Method.Module.ModuleHandle.GetRuntimeModule().GetUnderlyingNativeHandle());
+                //Internal.Console.WriteLine($"thread {threadId} has action={SimpleName(actions[i].GetType())} methodtoken=0x{actions[i].Method.MetadataToken:X} moduleid=0x{actions[i].Method.Module.ModuleHandle.GetRuntimeModule().GetUnderlyingNativeHandle():X}");
+            }
+
+            TaskContinuationEventSource.Log.Sample(threadId, sw.Elapsed.Ticks, Math.Min(actions.Count, maxItems), buffer);
+            //TaskContinuationEventSource.Log.SampleHumanReadable(threadId, stringBuilder.ToString());
+            ArrayPool<byte>.Shared.Return(buffer);
+#endif
         }
 
         // Can be null, a single continuation, a list of continuations, or s_taskCompletionSentinel,
@@ -2520,7 +2844,7 @@ namespace System.Threading.Tasks
             }
         }
 
-        #region Await Support
+#region Await Support
         /// <summary>Gets an awaiter used to await this <see cref="System.Threading.Tasks.Task"/>.</summary>
         /// <returns>An awaiter instance.</returns>
         public TaskAwaiter GetAwaiter()
@@ -2679,7 +3003,7 @@ namespace System.Threading.Tasks
         {
             return default;
         }
-        #endregion
+#endregion
 
         /// <summary>
         /// Waits for the <see cref="Task"/> to complete execution.
@@ -3637,9 +3961,9 @@ namespace System.Threading.Tasks
                 TplEventSource.Log.TraceSynchronousWorkEnd(CausalitySynchronousWork.CompletionNotification);
         }
 
-        #region Continuation methods
+#region Continuation methods
 
-        #region Action<Task> continuation
+#region Action<Task> continuation
         /// <summary>
         /// Creates a continuation that executes when the target <see cref="Task"/> completes.
         /// </summary>
@@ -3813,9 +4137,9 @@ namespace System.Threading.Tasks
 
             return continuationTask;
         }
-        #endregion
+#endregion
 
-        #region Action<Task, Object> continuation
+#region Action<Task, Object> continuation
 
         /// <summary>
         /// Creates a continuation that executes when the target <see cref="Task"/> completes.
@@ -3996,9 +4320,9 @@ namespace System.Threading.Tasks
             return continuationTask;
         }
 
-        #endregion
+#endregion
 
-        #region Func<Task, TResult> continuation
+#region Func<Task, TResult> continuation
 
         /// <summary>
         /// Creates a continuation that executes when the target <see cref="Task"/> completes.
@@ -4195,9 +4519,9 @@ namespace System.Threading.Tasks
 
             return continuationTask;
         }
-        #endregion
+#endregion
 
-        #region Func<Task, Object, TResult> continuation
+#region Func<Task, Object, TResult> continuation
 
         /// <summary>
         /// Creates a continuation that executes when the target <see cref="Task"/> completes.
@@ -4399,7 +4723,7 @@ namespace System.Threading.Tasks
 
             return continuationTask;
         }
-        #endregion
+#endregion
 
         /// <summary>
         /// Converts TaskContinuationOptions to TaskCreationOptions, and also does
@@ -4538,7 +4862,7 @@ namespace System.Threading.Tasks
                 if (!continuationQueued) continuation.Run(this, canInlineContinuationTask: true);
             }
         }
-        #endregion
+#endregion
 
         // Adds a lightweight completion action to a task.  This is similar to a continuation
         // task except that it is stored as an action, and thus does not require the allocation/
@@ -5292,7 +5616,7 @@ namespace System.Threading.Tasks
             return signaledTaskIndex;
         }
 
-        #region FromResult / FromException / FromCanceled
+#region FromResult / FromException / FromCanceled
 
         /// <summary>Gets a <see cref="Task{TResult}"/> that's completed successfully with the specified result.</summary>
         /// <typeparam name="TResult">The type of the result returned by the task.</typeparam>
@@ -5426,9 +5750,9 @@ namespace System.Threading.Tasks
             return task;
         }
 
-        #endregion
+#endregion
 
-        #region Run methods
+#region Run methods
 
         /// <summary>
         /// Queues the specified work to run on the ThreadPool and returns a Task handle for that work.
@@ -5583,9 +5907,9 @@ namespace System.Threading.Tasks
             return promise;
         }
 
-        #endregion
+#endregion
 
-        #region Delay methods
+#region Delay methods
 
         /// <summary>
         /// Creates a Task that will complete after a time delay.
@@ -5778,9 +6102,9 @@ namespace System.Threading.Tasks
                 base.Cleanup();
             }
         }
-        #endregion
+#endregion
 
-        #region WhenAll
+#region WhenAll
         /// <summary>
         /// Creates a task that will complete when all of the supplied tasks have completed.
         /// </summary>
@@ -6254,9 +6578,9 @@ namespace System.Threading.Tasks
                 base.ShouldNotifyDebuggerOfWaitCompletion &&
                 AnyTaskRequiresNotifyDebuggerOfWaitCompletion(m_tasks);
         }
-        #endregion
+#endregion
 
-        #region WhenAny
+#region WhenAny
         /// <summary>
         /// Creates a task that will complete when any of the supplied tasks have completed.
         /// </summary>
@@ -6552,7 +6876,7 @@ namespace System.Threading.Tasks
             return intermediate.ContinueWith(Task<TResult>.TaskWhenAnyCast.Value, default,
                 TaskContinuationOptions.ExecuteSynchronously | TaskContinuationOptions.DenyChildAttach, TaskScheduler.Default);
         }
-        #endregion
+#endregion
 
         internal static Task<TResult> CreateUnwrapPromise<TResult>(Task outerTask, bool lookForOce)
         {

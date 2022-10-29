@@ -39,7 +39,7 @@ prefix_name ## _rt_ ## type_name ## _ ## func_name
 class TaskHelpers
 {
 public:
-    static FCDECL2(void, GetAllTasks, Object **pThreadIdsUnsafe, Object **pTasksUnsafe);
+    static FCDECL2(void, GetAllTasks, Object *pThreadIdsUnsafe, Object *pTasksUnsafe);
 };
 
 template<typename LIST_TYPE>
