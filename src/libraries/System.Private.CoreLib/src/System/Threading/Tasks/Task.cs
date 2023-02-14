@@ -339,6 +339,8 @@ namespace System.Threading.Tasks
         }
         private static Dictionary<GetterKey, Func<object, object>?> _optimizedGetters = new();
 
+        [UnconditionalSuppressMessage("ReflectionAnalysis", "IL2075:UnrecognizedReflectionPattern",
+            Justification = "Prototype")]
         private static bool GetFieldFromObject(object? obj, string fieldName, out object? value)
         {
             value = null;
@@ -347,18 +349,20 @@ namespace System.Threading.Tasks
                 return false;
             }
 
-            GetterKey key = new(obj.GetType(), fieldName);
+            Type objType = obj.GetType();
+
+            GetterKey key = new(objType, fieldName);
             Func<object, object>? getFieldAction;
             if (!_optimizedGetters.TryGetValue(key, out getFieldAction))
             {
-                FieldInfo? fieldInfo = obj.GetType().GetField(fieldName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                FieldInfo? fieldInfo = objType.GetField(fieldName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
                 if (fieldInfo == null)
                 {
                     _optimizedGetters.Add(key, null);
                 }
                 else
                 {
-                    Type[] methodArgs = { obj.GetType() };
+                    Type[] methodArgs = { objType };
                     string methodName = $"get{fieldName}From{key.type.Name}";
                     DynamicMethod fetcher = new(methodName, typeof(object), methodArgs);
                     ILGenerator il = fetcher.GetILGenerator();
@@ -404,22 +408,26 @@ namespace System.Threading.Tasks
 
             object? tmp;
             // If it's storing an action wrapper, try to follow to that action's target.
-            if (GetFieldFromObject(resolvedContinuation, "m_action", out tmp))
+            if (resolvedContinuation != null
+                && GetFieldFromObject(resolvedContinuation, "m_action", out tmp))
             {
                 resolvedContinuation = tmp;
             }
 
             // If we now have an Action, try to follow through to the delegate's target.
-            if (GetFieldFromObject(resolvedContinuation, "_target", out tmp))
+            if (resolvedContinuation != null
+                &&  GetFieldFromObject(resolvedContinuation, "_target", out tmp))
             {
                 resolvedContinuation = tmp;
 
                 // In some cases, the delegate's target might be a ContinuationWrapper, in which case we want to unwrap that as well.
-                if (resolvedContinuation?.GetType()?.Name == "System.Runtime.CompilerServices.AsyncMethodBuilderCore+ContinuationWrapper" &&
-                    GetFieldFromObject(resolvedContinuation, "_continuation", out tmp))
+                if (resolvedContinuation != null
+                    && resolvedContinuation?.GetType()?.Name == "System.Runtime.CompilerServices.AsyncMethodBuilderCore+ContinuationWrapper"
+                    && GetFieldFromObject(resolvedContinuation, "_continuation", out tmp))
                 {
                     resolvedContinuation = tmp;
-                    if (GetFieldFromObject(resolvedContinuation, "_target", out tmp))
+                    if (resolvedContinuation != null
+                        && GetFieldFromObject(resolvedContinuation, "_target", out tmp))
                     {
                         resolvedContinuation = tmp;
                     }
@@ -428,17 +436,6 @@ namespace System.Threading.Tasks
 
             return resolvedContinuation != null;
         }
-
-//        private static ulong GetIpFromDelegate(object? delObj)
-//        {
-//#if !NATIVEAOT
-//            if (delObj is Delegate d)
-//            {
-//                return d.GetTarget();
-//            }
-//#endif
-//            return 0;
-//        }
 
         private static string SimpleName(Type? type)
         {
@@ -549,11 +546,9 @@ namespace System.Threading.Tasks
             }
 
             Stopwatch sw = Stopwatch.StartNew();
-            //Internal.Console.WriteLine($"Thread {threadId} has task with id {currentThreadTask.Id}");
             TaskContinuationEventSource.Log.ActiveTaskOnThread(threadId, currentThreadTask?.Id ?? 0);
 
             List<Delegate> actions = new List<Delegate>();
-            //StringBuilder stringBuilder = new StringBuilder();
             DoAsyncSample(0, currentThreadTask, actions, null);
 
             int maxItems = 512;
@@ -568,11 +563,9 @@ namespace System.Threading.Tasks
                 // Now module token
                 byteSpan = new Span<byte>(buffer, (i * 12) + 4, 8);
                 BinaryPrimitives.WriteUInt64LittleEndian(byteSpan, (ulong)actions[i].Method.Module.ModuleHandle.GetRuntimeModule().GetUnderlyingNativeHandle());
-                //Internal.Console.WriteLine($"thread {threadId} has action={SimpleName(actions[i].GetType())} methodtoken=0x{actions[i].Method.MetadataToken:X} moduleid=0x{actions[i].Method.Module.ModuleHandle.GetRuntimeModule().GetUnderlyingNativeHandle():X}");
             }
 
             TaskContinuationEventSource.Log.Sample(threadId, sw.Elapsed.Ticks, Math.Min(actions.Count, maxItems), buffer);
-            //TaskContinuationEventSource.Log.SampleHumanReadable(threadId, stringBuilder.ToString());
             ArrayPool<byte>.Shared.Return(buffer);
 #endif
         }
