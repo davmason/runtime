@@ -453,6 +453,8 @@ public:
     DWORD  NgenForceFailureKind()     { LIMITED_METHOD_CONTRACT; return dwNgenForceFailureKind;  }
 #endif
 
+    bool EventPipeDisableStacks()       const { LIMITED_METHOD_CONTRACT; return fEventPipeDisableStacks; }
+
 #ifdef _DEBUG
 
     DWORD GetHostTestThreadAbort() const {LIMITED_METHOD_CONTRACT; return testThreadAbort;}
@@ -613,6 +615,8 @@ private: //----------------------------------------------------------------
     bool fForceEnc;
     bool fDebugAssembliesModifiable;
     bool fProbeForStackOverflow;
+
+    bool fEventPipeDisableStacks;
 
     // Stackwalk optimization flag
     DWORD dwDisableStackwalkCache;

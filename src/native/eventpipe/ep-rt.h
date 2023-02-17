@@ -406,6 +406,10 @@ static
 bool
 ep_rt_config_value_get_use_portable_thread_pool (void);
 
+static
+bool
+ep_rt_config_value_get_disable_stacks (void);
+
 /*
  * EventPipeSampleProfiler.
  */

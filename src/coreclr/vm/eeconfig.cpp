@@ -118,6 +118,8 @@ HRESULT EEConfig::Init()
     fForceEnc = false;
     fProbeForStackOverflow = true;
 
+    fEventPipeDisableStacks = false;
+
     INDEBUG(fStressLog = true;)
 
 #ifdef _DEBUG
@@ -478,6 +480,8 @@ HRESULT EEConfig::sync()
         if (wszModifiableAssemblies)
             fDebugAssembliesModifiable = _wcsicmp(wszModifiableAssemblies, W("debug")) == 0;
     }
+
+    fEventPipeDisableStacks = CLRConfig::GetConfigValue(CLRConfig::INTERNAL_EventPipeDisableStacks) != 0;
 
     pReadyToRunExcludeList = NULL;
 
