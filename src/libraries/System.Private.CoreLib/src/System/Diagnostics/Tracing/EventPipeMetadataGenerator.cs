@@ -170,7 +170,7 @@ namespace System.Diagnostics.Tracing
                         BufferHelpers.WriteToBuffer(pMetadata, totalMetadataLength, ref offset, (uint)parameters.Length);
                         foreach (var parameter in parameters)
                         {
-                            if (!parameter.GenerateMetadata(pMetadata, ref offset, totalMetadataLength))
+                            if (!parameter.GenerateMetadataV1(pMetadata, ref offset, totalMetadataLength))
                             {
                                 // If we fail to generate metadata for any parameter, we should return the "default" metadata without any parameters
                                 return GenerateMetadata(eventId, eventName, keywords, level, version, opcode, Array.Empty<EventParameterInfo>());
@@ -236,33 +236,48 @@ namespace System.Diagnostics.Tracing
             TypeInfo = typeInfo;
         }
 
-        internal unsafe bool GenerateMetadata(byte* pMetadataBlob, ref uint offset, uint blobSize)
+        internal unsafe bool GenerateMetadataV1(byte* pMetadataBlob, ref uint offset, uint blobSize)
         {
-            TypeCode typeCode = GetTypeCodeExtended(ParameterType);
-            if (typeCode == TypeCode.Object)
+            return GenerateMetadataHelperV1(pMetadataBlob, ref offset, blobSize, out _);
+        }
+
+        internal unsafe bool GetMetadataLength(out uint size)
+        {
+            uint offset = 0;
+            return GenerateMetadataHelperV1(null, ref offset, 0, out size);
+        }
+
+        private unsafe bool GenerateMetadataHelperV1(byte* pMetadataBlob, ref uint offset, uint blobSize, out uint sizeWritten)
+        {
+            sizeWritten = 0;
+
+            if (TypeInfo is InvokeTypeInfo invokeTypeInfo)
             {
                 // Each nested struct is serialized as:
                 //     TypeCode.Object              : 4 bytes
                 //     Number of properties         : 4 bytes
                 //     Property description 0...N
                 //     Nested struct property name  : NULL-terminated string.
-                BufferHelpers.WriteToBuffer(pMetadataBlob, blobSize, ref offset, (uint)TypeCode.Object);
-
-                if (!(TypeInfo is InvokeTypeInfo invokeTypeInfo))
+                if (pMetadataBlob != null)
                 {
-                    return false;
+                    BufferHelpers.WriteToBuffer(pMetadataBlob, blobSize, ref offset, (uint)TypeCode.Object);
                 }
+                sizeWritten += 4;
 
                 // Get the set of properties to be serialized.
                 PropertyAnalysis[]? properties = invokeTypeInfo.properties;
                 if (properties != null)
                 {
-                    // Write the count of serializable properties.
-                    BufferHelpers.WriteToBuffer(pMetadataBlob, blobSize, ref offset, (uint)properties.Length);
+                    if (pMetadataBlob != null)
+                    {
+                        // Write the count of serializable properties.
+                        BufferHelpers.WriteToBuffer(pMetadataBlob, blobSize, ref offset, (uint)properties.Length);
+                    }
+                    sizeWritten += 4;
 
                     foreach (PropertyAnalysis prop in properties)
                     {
-                        if (!GenerateMetadataForProperty(prop, pMetadataBlob, ref offset, blobSize))
+                        if (!GenerateMetadataForPropertyV1(prop, pMetadataBlob, ref offset, blobSize, ref sizeWritten))
                         {
                             return false;
                         }
@@ -270,28 +285,54 @@ namespace System.Diagnostics.Tracing
                 }
                 else
                 {
-                    // This struct has zero serializable properties so we just write the property count.
-                    BufferHelpers.WriteToBuffer(pMetadataBlob, blobSize, ref offset, (uint)0);
+                    if (pMetadataBlob != null)
+                    {
+                        // This struct has zero serializable properties so we just write the property count.
+                        BufferHelpers.WriteToBuffer(pMetadataBlob, blobSize, ref offset, (uint)0);
+                    }
+                    sizeWritten += 4;
                 }
 
-                // Top-level structs don't have a property name, but for simplicity we write a NULL-char to represent the name.
-                BufferHelpers.WriteToBuffer(pMetadataBlob, blobSize, ref offset, '\0');
+                if (pMetadataBlob != null)
+                {
+                    // Top-level structs don't have a property name, but for simplicity we write a NULL-char to represent the name.
+                    BufferHelpers.WriteToBuffer(pMetadataBlob, blobSize, ref offset, '\0');
+                }
+                sizeWritten += 2;
+            }
+            else if (TypeInfo is ScalarArrayTypeInfo || TypeInfo is EnumerableTypeInfo)
+            {
+                // Array/Enumerable are unsupported in v1
+                return false;
             }
             else
             {
-                // Write parameter type.
-                BufferHelpers.WriteToBuffer(pMetadataBlob, blobSize, ref offset, (uint)typeCode);
+                Debug.Assert(TypeInfo is ScalarTypeInfo);
 
-                // Write parameter name.
-                fixed (char* pParameterName = ParameterName)
+                TypeCode typeCode = GetTypeCodeExtended(ParameterType);
+                if (pMetadataBlob != null)
                 {
-                    BufferHelpers.WriteToBuffer(pMetadataBlob, blobSize, ref offset, (byte*)pParameterName, ((uint)ParameterName.Length + 1) * 2);
+                    // Write parameter type.
+                    BufferHelpers.WriteToBuffer(pMetadataBlob, blobSize, ref offset, (uint)typeCode);
                 }
+                sizeWritten += 4;
+
+                uint nameLength = ((uint)ParameterName.Length + 1) * 2;
+
+                if (pMetadataBlob != null)
+                {
+                    // Write parameter name.
+                    fixed (char* pParameterName = ParameterName)
+                    {
+                        BufferHelpers.WriteToBuffer(pMetadataBlob, blobSize, ref offset, (byte*)pParameterName, nameLength);
+                    }
+                }
+                sizeWritten += nameLength;
             }
             return true;
         }
 
-        private static unsafe bool GenerateMetadataForProperty(PropertyAnalysis property, byte* pMetadataBlob, ref uint offset, uint blobSize)
+        private static unsafe bool GenerateMetadataForPropertyV1(PropertyAnalysis property, byte* pMetadataBlob, ref uint offset, uint blobSize, ref uint sizeWritten)
         {
             Debug.Assert(property != null);
             Debug.Assert(pMetadataBlob != null);
@@ -299,23 +340,31 @@ namespace System.Diagnostics.Tracing
             // Check if this property is a nested struct.
             if (property.typeInfo is InvokeTypeInfo invokeTypeInfo)
             {
-                // Each nested struct is serialized as:
-                //     TypeCode.Object              : 4 bytes
-                //     Number of properties         : 4 bytes
-                //     Property description 0...N
-                //     Nested struct property name  : NULL-terminated string.
-                BufferHelpers.WriteToBuffer(pMetadataBlob, blobSize, ref offset, (uint)TypeCode.Object);
+                if (pMetadataBlob != null)
+                {
+                    // Each nested struct is serialized as:
+                    //     TypeCode.Object              : 4 bytes
+                    //     Number of properties         : 4 bytes
+                    //     Property description 0...N
+                    //     Nested struct property name  : NULL-terminated string.
+                    BufferHelpers.WriteToBuffer(pMetadataBlob, blobSize, ref offset, (uint)TypeCode.Object);
+                }
+                sizeWritten += 4;
 
                 // Get the set of properties to be serialized.
                 PropertyAnalysis[]? properties = invokeTypeInfo.properties;
                 if (properties != null)
                 {
-                    // Write the count of serializable properties.
-                    BufferHelpers.WriteToBuffer(pMetadataBlob, blobSize, ref offset, (uint)properties.Length);
+                    if (pMetadataBlob != null)
+                    {
+                        // Write the count of serializable properties.
+                        BufferHelpers.WriteToBuffer(pMetadataBlob, blobSize, ref offset, (uint)properties.Length);
+                    }
+                    sizeWritten += 4;
 
                     foreach (PropertyAnalysis prop in properties)
                     {
-                        if (!GenerateMetadataForProperty(prop, pMetadataBlob, ref offset, blobSize))
+                        if (!GenerateMetadataForPropertyV1(prop, pMetadataBlob, ref offset, blobSize, ref sizeWritten))
                         {
                             return false;
                         }
@@ -323,69 +372,107 @@ namespace System.Diagnostics.Tracing
                 }
                 else
                 {
-                    // This struct has zero serializable properties so we just write the property count.
-                    BufferHelpers.WriteToBuffer(pMetadataBlob, blobSize, ref offset, (uint)0);
+                    if (pMetadataBlob != null)
+                    {
+                        // This struct has zero serializable properties so we just write the property count.
+                        BufferHelpers.WriteToBuffer(pMetadataBlob, blobSize, ref offset, (uint)0);
+                    }
+                    sizeWritten += 4;
                 }
 
-                // Write the property name.
-                fixed (char* pPropertyName = property.name)
+                uint nameLength = ((uint)property.name.Length + 1) * 2;
+                if (pMetadataBlob != null)
                 {
-                    BufferHelpers.WriteToBuffer(pMetadataBlob, blobSize, ref offset, (byte*)pPropertyName, ((uint)property.name.Length + 1) * 2);
+                    // Write the property name.
+                    fixed (char* pPropertyName = property.name)
+                    {
+                        BufferHelpers.WriteToBuffer(pMetadataBlob, blobSize, ref offset, (byte*)pPropertyName, nameLength);
+                    }
                 }
+                sizeWritten += nameLength;
+            }
+            else if (property.typeInfo is ScalarArrayTypeInfo || property.typeInfo is EnumerableTypeInfo)
+            {
+                // Array/Enumerable are unsupported in v1
+                return false;
             }
             else
             {
+                Debug.Assert(property.typeInfo is ScalarTypeInfo);
+
                 // Each primitive type is serialized as:
                 //     TypeCode : 4 bytes
                 //     PropertyName : NULL-terminated string
                 TypeCode typeCode = GetTypeCodeExtended(property.typeInfo.DataType);
-
-                // EventPipe does not support this type.  Throw, which will cause no metadata to be registered for this event.
-                if (typeCode == TypeCode.Object)
+                if (pMetadataBlob != null)
                 {
-                    return false;
+                    // Write the type code.
+                    BufferHelpers.WriteToBuffer(pMetadataBlob, blobSize, ref offset, (uint)typeCode);
                 }
+                sizeWritten += 4;
 
-                // Write the type code.
-                BufferHelpers.WriteToBuffer(pMetadataBlob, blobSize, ref offset, (uint)typeCode);
-
-                // Write the property name.
-                fixed (char* pPropertyName = property.name)
+                uint nameLength = ((uint)property.name.Length + 1) * 2;
+                if (pMetadataBlob != null)
                 {
-                    BufferHelpers.WriteToBuffer(pMetadataBlob, blobSize, ref offset, (byte*)pPropertyName, ((uint)property.name.Length + 1) * 2);
+                    // Write the property name.
+                    fixed (char* pPropertyName = property.name)
+                    {
+                        BufferHelpers.WriteToBuffer(pMetadataBlob, blobSize, ref offset, (byte*)pPropertyName, nameLength);
+                    }
                 }
+                sizeWritten += nameLength;
             }
             return true;
         }
 
         internal unsafe bool GenerateMetadataV2(byte* pMetadataBlob, ref uint offset, uint blobSize)
         {
-            if (TypeInfo == null)
-                return false;
-            return GenerateMetadataForNamedTypeV2(ParameterName, TypeInfo, pMetadataBlob, ref offset, blobSize);
+            return GenerateMetadataHelperV2(pMetadataBlob, ref offset, blobSize, out _);
         }
 
-        private static unsafe bool GenerateMetadataForNamedTypeV2(string name, TraceLoggingTypeInfo typeInfo, byte* pMetadataBlob, ref uint offset, uint blobSize)
+        internal unsafe bool GetMetadataLengthV2(out uint size)
         {
-            Debug.Assert(pMetadataBlob != null);
-
-            if (!GetMetadataLengthForNamedTypeV2(name, typeInfo, out uint length))
-            {
-                return false;
-            }
-
-            BufferHelpers.WriteToBuffer(pMetadataBlob, blobSize, ref offset, length);
-
-            // Write the property name.
-            fixed (char *pPropertyName = name)
-            {
-                BufferHelpers.WriteToBuffer(pMetadataBlob, blobSize, ref offset, (byte *)pPropertyName, ((uint)name.Length + 1) * 2);
-            }
-
-            return GenerateMetadataForTypeV2(typeInfo, pMetadataBlob, ref offset, blobSize);
+            uint offset = 0;
+            return GenerateMetadataHelperV2(null, ref offset, 0, out size);
         }
 
-        private static unsafe bool GenerateMetadataForTypeV2(TraceLoggingTypeInfo typeInfo, byte* pMetadataBlob, ref uint offset, uint blobSize)
+        private unsafe bool GenerateMetadataHelperV2(byte* pMetadataBlob, ref uint offset, uint blobSize, out uint sizeWritten)
+        {
+            sizeWritten = 0;
+            return GenerateMetadataForNamedTypeV2(ParameterName, TypeInfo, pMetadataBlob, ref offset, blobSize, ref sizeWritten);
+        }
+
+        private static unsafe bool GenerateMetadataForNamedTypeV2(string name, TraceLoggingTypeInfo typeInfo, byte* pMetadataBlob, ref uint offset, uint blobSize, ref uint sizeWritten)
+        {
+            uint thisFieldLength = 4;
+            uint fieldLengthOffset = offset;
+            offset += 4;
+
+            uint nameLength = ((uint)name.Length + 1) * 2;
+            if (pMetadataBlob != null)
+            {
+                // Write the property name.
+                fixed (char* pPropertyName = name)
+                {
+                    BufferHelpers.WriteToBuffer(pMetadataBlob, blobSize, ref offset, (byte*)pPropertyName, nameLength);
+                }
+            }
+            thisFieldLength += nameLength;
+
+            bool success = GenerateMetadataForTypeV2(typeInfo, pMetadataBlob, ref offset, blobSize, ref thisFieldLength);
+            if (success)
+            {
+                if (pMetadataBlob != null)
+                {
+                    BufferHelpers.WriteToBuffer(pMetadataBlob, blobSize, ref fieldLengthOffset, thisFieldLength);
+                }
+                sizeWritten += thisFieldLength;
+            }
+
+            return success;
+        }
+
+        private static unsafe bool GenerateMetadataForTypeV2(TraceLoggingTypeInfo typeInfo, byte* pMetadataBlob, ref uint offset, uint blobSize, ref uint sizeWritten)
         {
             Debug.Assert(typeInfo != null);
             Debug.Assert(pMetadataBlob != null);
@@ -393,22 +480,30 @@ namespace System.Diagnostics.Tracing
             // Check if this type is a nested struct.
             if (typeInfo is InvokeTypeInfo invokeTypeInfo)
             {
-                // Each nested struct is serialized as:
-                //     TypeCode.Object              : 4 bytes
-                //     Number of properties         : 4 bytes
-                //     Property description 0...N
-                BufferHelpers.WriteToBuffer(pMetadataBlob, blobSize, ref offset, (uint)TypeCode.Object);
+                if (pMetadataBlob != null)
+                {
+                    // Each nested struct is serialized as:
+                    //     TypeCode.Object              : 4 bytes
+                    //     Number of properties         : 4 bytes
+                    //     Property description 0...N
+                    BufferHelpers.WriteToBuffer(pMetadataBlob, blobSize, ref offset, (uint)TypeCode.Object);
+                }
+                sizeWritten += 4;
 
                 // Get the set of properties to be serialized.
                 PropertyAnalysis[]? properties = invokeTypeInfo.properties;
                 if (properties != null)
                 {
-                    // Write the count of serializable properties.
-                    BufferHelpers.WriteToBuffer(pMetadataBlob, blobSize, ref offset, (uint)properties.Length);
+                    if (pMetadataBlob != null)
+                    {
+                        // Write the count of serializable properties.
+                        BufferHelpers.WriteToBuffer(pMetadataBlob, blobSize, ref offset, (uint)properties.Length);
+                    }
+                    sizeWritten += 4;
 
                     foreach (PropertyAnalysis prop in properties)
                     {
-                        if (!GenerateMetadataForNamedTypeV2(prop.name, prop.typeInfo, pMetadataBlob, ref offset, blobSize))
+                        if (!GenerateMetadataForNamedTypeV2(prop.name, prop.typeInfo, pMetadataBlob, ref offset, blobSize, ref sizeWritten))
                         {
                             return false;
                         }
@@ -416,102 +511,55 @@ namespace System.Diagnostics.Tracing
                 }
                 else
                 {
-                    // This struct has zero serializable properties so we just write the property count.
-                    BufferHelpers.WriteToBuffer(pMetadataBlob, blobSize, ref offset, (uint)0);
+                    if (pMetadataBlob != null)
+                    {
+                        // This struct has zero serializable properties so we just write the property count.
+                        BufferHelpers.WriteToBuffer(pMetadataBlob, blobSize, ref offset, (uint)0);
+                    }
+                    sizeWritten += 4;
                 }
             }
             else if (typeInfo is EnumerableTypeInfo enumerableTypeInfo)
             {
-                // Each enumerable is serialized as:
-                //     TypeCode.Array               : 4 bytes
-                //     ElementType                  : N bytes
-                BufferHelpers.WriteToBuffer(pMetadataBlob, blobSize, ref offset, EventPipeTypeCodeArray);
-                GenerateMetadataForTypeV2(enumerableTypeInfo.ElementInfo, pMetadataBlob, ref offset, blobSize);
+                if (pMetadataBlob != null)
+                {
+                    // Each enumerable is serialized as:
+                    //     TypeCode.Array               : 4 bytes
+                    //     ElementType                  : N bytes
+                    BufferHelpers.WriteToBuffer(pMetadataBlob, blobSize, ref offset, EventPipeTypeCodeArray);
+                }
+                sizeWritten += 4;
+
+                GenerateMetadataForTypeV2(enumerableTypeInfo.ElementInfo, pMetadataBlob, ref offset, blobSize, ref sizeWritten);
             }
             else if (typeInfo is ScalarArrayTypeInfo arrayTypeInfo)
             {
-                // Each scalar array is serialized as:
-                //     TypeCode.Array               : 4 bytes
-                //     Scalar type code             : 4 bytes
-                BufferHelpers.WriteToBuffer(pMetadataBlob, blobSize, ref offset, EventPipeTypeCodeArray);
-                TypeCode typeCode = GetTypeCodeExtended(arrayTypeInfo.DataType.GetElementType()!);
-                BufferHelpers.WriteToBuffer(pMetadataBlob, blobSize, ref offset, (uint)typeCode);
-            }
-            else
-            {
-                // Each primitive type is serialized as:
-                //     TypeCode : 4 bytes
-                TypeCode typeCode = GetTypeCodeExtended(typeInfo.DataType);
-                BufferHelpers.WriteToBuffer(pMetadataBlob, blobSize, ref offset, (uint)typeCode);
-            }
-            return true;
-        }
-
-        internal bool GetMetadataLength(out uint size)
-        {
-            return GetMetadataLengthForNamedType(ParameterName, TypeInfo, out size);
-        }
-
-        private static bool GetMetadataLengthForNamedType(string name, TraceLoggingTypeInfo typeInfo, out uint size)
-        {
-            size = (uint)(sizeof(uint) +
-                   ((name.Length + 1) * 2));
-
-            if (!GetMetadataLengthForType(typeInfo, out uint typeSize))
-            {
-                return false;
-            }
-
-            size += typeSize;
-            return true;
-        }
-
-        private static bool GetMetadataLengthForType(TraceLoggingTypeInfo typeInfo, out uint size)
-        {
-            size = 0;
-
-            if (typeInfo is InvokeTypeInfo invokeTypeInfo)
-            {
-                // Each nested struct is serialized as:
-                //     TypeCode.Object      : 4 bytes
-                //     Number of properties : 4 bytes
-                //     Property description 0...N
-                //     Nested struct property name  : NULL-terminated string.
-                size += sizeof(uint)  // TypeCode
-                     + sizeof(uint); // Property count
-
-                // Get the set of properties to be serialized.
-                PropertyAnalysis[]? properties = invokeTypeInfo.properties;
-                if (properties != null)
+                if (pMetadataBlob != null)
                 {
-                    foreach (PropertyAnalysis prop in properties)
-                    {
-                        if (!GetMetadataLengthForNamedType(prop.name, prop.typeInfo, out uint propSize))
-                        {
-                            return false;
-                        }
-
-                        size += propSize;
-                    }
+                    // Each scalar array is serialized as:
+                    //     TypeCode.Array               : 4 bytes
+                    //     Scalar type code             : 4 bytes
+                    BufferHelpers.WriteToBuffer(pMetadataBlob, blobSize, ref offset, EventPipeTypeCodeArray);
+                    TypeCode typeCode = GetTypeCodeExtended(arrayTypeInfo.DataType.GetElementType()!);
+                    BufferHelpers.WriteToBuffer(pMetadataBlob, blobSize, ref offset, (uint)typeCode);
                 }
-
-                // For simplicity when writing a reader, we write a NULL char
-                // after the metadata for a top-level struct (for its name) so that
-                // readers don't have do special case the outer-most struct.
-                size += sizeof(char);
-                return true;
-            }
-            else if (typeInfo is ScalarArrayTypeInfo || typeInfo is EnumerableTypeInfo)
-            {
-                // Array/Enumerable are unsupported in v1
-                return false;
+                sizeWritten += 8;
             }
             else
             {
-                // One uint for the typecode, plus the size of the name
-                size += sizeof(uint);
-                return true;
+                Debug.Assert(typeInfo is ScalarTypeInfo);
+
+                if (pMetadataBlob != null)
+                {
+                    // Each primitive type is serialized as:
+                    //     TypeCode : 4 bytes
+                    TypeCode typeCode = GetTypeCodeExtended(typeInfo.DataType);
+                    BufferHelpers.WriteToBuffer(pMetadataBlob, blobSize, ref offset, (uint)typeCode);
+                }
+                sizeWritten += 4;
             }
+
+            return true;
         }
 
         // Array is not part of TypeCode, we decided to use 19 to represent it. (18 is the last type code value, string)
@@ -534,87 +582,6 @@ namespace System.Diagnostics.Tracing
                 return UIntPtr.Size == 4 ? TypeCode.UInt32 : TypeCode.UInt64;
 
             return Type.GetTypeCode(parameterType);
-        }
-
-        internal bool GetMetadataLengthV2(out uint size)
-        {
-            return GetMetadataLengthForNamedTypeV2(ParameterName, TypeInfo, out size);
-        }
-
-        private static bool GetMetadataLengthForTypeV2(TraceLoggingTypeInfo typeInfo, out uint size)
-        {
-            size = 0;
-            if (typeInfo == null)
-            {
-                return false;
-            }
-
-            if (typeInfo is InvokeTypeInfo invokeTypeInfo)
-            {
-                // Struct is serialized as:
-                //     TypeCode.Object      : 4 bytes
-                //     Number of properties : 4 bytes
-                //     Property description 0...N
-                size += sizeof(uint)  // TypeCode
-                     + sizeof(uint); // Property count
-
-                // Get the set of properties to be serialized.
-                PropertyAnalysis[]? properties = invokeTypeInfo.properties;
-                if (properties != null)
-                {
-                    foreach (PropertyAnalysis prop in properties)
-                    {
-                        if (!GetMetadataLengthForNamedTypeV2(prop.name, prop.typeInfo, out uint typeSize))
-                        {
-                            return false;
-                        }
-
-                        size += typeSize;
-                    }
-                }
-            }
-            else if (typeInfo is EnumerableTypeInfo enumerableTypeInfo)
-            {
-                // IEnumerable<T> is serialized as:
-                //     TypeCode            : 4 bytes
-                //     ElementType         : N bytes
-                size += sizeof(uint);
-                if (!GetMetadataLengthForTypeV2(enumerableTypeInfo.ElementInfo, out uint typeSize))
-                {
-                    return false;
-                }
-
-                size += typeSize;
-            }
-            else if (typeInfo is ScalarArrayTypeInfo)
-            {
-                // For a scalar array, we know it is one uint for the array code and one uint for the scalar code
-                size += sizeof(uint) * 2;
-            }
-            else
-            {
-                size += (uint)sizeof(uint);
-            }
-
-            return true;
-        }
-
-        private static bool GetMetadataLengthForNamedTypeV2(string name, TraceLoggingTypeInfo typeInfo, out uint size)
-        {
-            // Named type is serialized
-            //     SizeOfTypeDescription    : 4 bytes
-            //     Name                     : NULL-terminated UTF16 string
-            //     Type                     : N bytes
-            size = (uint)(sizeof(uint) +
-                   ((name.Length + 1) * 2));
-
-            if (!GetMetadataLengthForTypeV2(typeInfo, out uint typeSize))
-            {
-                return false;
-            }
-
-            size += typeSize;
-            return true;
         }
     }
 
