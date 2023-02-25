@@ -29,7 +29,7 @@ namespace System.Diagnostics.Tracing
             for (int i = 0; i < parameters.Length; i++)
             {
                 TraceLoggingTypeInfo paramTypeInfo = TraceLoggingTypeInfo.GetInstance(parameters[i].ParameterType, new List<Type>());
-                Debug.Assert(paramTypeInfo is ScalarTypeInfo || paramTypeInfo is ScalarArrayTypeInfo);
+                Debug.Assert(paramTypeInfo is ScalarTypeInfo || paramTypeInfo is ScalarArrayTypeInfo || paramTypeInfo is StringTypeInfo);
                 eventParams[i].SetInfo(parameters[i].Name!, parameters[i].ParameterType, paramTypeInfo);
             }
 
@@ -308,7 +308,7 @@ namespace System.Diagnostics.Tracing
             }
             else
             {
-                Debug.Assert(TypeInfo is ScalarTypeInfo);
+                Debug.Assert(TypeInfo is ScalarTypeInfo || TypeInfo is StringTypeInfo);
 
                 TypeCode typeCode = GetTypeCodeExtended(ParameterType);
                 if (pMetadataBlob != null)
@@ -399,7 +399,7 @@ namespace System.Diagnostics.Tracing
             }
             else
             {
-                Debug.Assert(property.typeInfo is ScalarTypeInfo);
+                Debug.Assert(property.typeInfo is ScalarTypeInfo || property.typeInfo is StringTypeInfo);
 
                 // Each primitive type is serialized as:
                 //     TypeCode : 4 bytes
@@ -476,7 +476,6 @@ namespace System.Diagnostics.Tracing
         private static unsafe bool GenerateMetadataForTypeV2(TraceLoggingTypeInfo typeInfo, byte* pMetadataBlob, ref uint offset, uint blobSize, ref uint sizeWritten)
         {
             Debug.Assert(typeInfo != null);
-            Debug.Assert(pMetadataBlob != null);
 
             // Check if this type is a nested struct.
             if (typeInfo is InvokeTypeInfo invokeTypeInfo)
@@ -548,7 +547,7 @@ namespace System.Diagnostics.Tracing
             }
             else
             {
-                Debug.Assert(typeInfo is ScalarTypeInfo);
+                Debug.Assert(typeInfo is ScalarTypeInfo || typeInfo is StringTypeInfo);
 
                 if (pMetadataBlob != null)
                 {
