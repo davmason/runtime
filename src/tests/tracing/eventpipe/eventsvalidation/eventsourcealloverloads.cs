@@ -8,7 +8,7 @@ using System.Diagnostics;
 using System.Diagnostics.Tracing;
 using System.Reflection;
 using System.Threading.Tasks;
-using System.Xml.Linq;
+using System.Linq;
 
 namespace EventListenerTest
 {
@@ -86,12 +86,6 @@ namespace EventListenerTest
         {
             WriteEvent(12, s);
         }
-
-        //[Event(13)]
-        //public void TestEvent13(params object[] args)
-        //{
-        //    WriteEvent(13, args);
-        //}
 
         [Event(14)]
         public void TestEvent14(long l)
