@@ -29,6 +29,7 @@ namespace System.Diagnostics.Tracing
             for (int i = 0; i < parameters.Length; i++)
             {
                 TraceLoggingTypeInfo paramTypeInfo = TraceLoggingTypeInfo.GetInstance(parameters[i].ParameterType, new List<Type>());
+                Debug.Assert(paramTypeInfo is ScalarTypeInfo || paramTypeInfo is ScalarArrayTypeInfo);
                 eventParams[i].SetInfo(parameters[i].Name!, parameters[i].ParameterType, paramTypeInfo);
             }
 
