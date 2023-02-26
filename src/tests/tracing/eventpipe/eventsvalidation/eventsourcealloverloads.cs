@@ -1,18 +1,18 @@
-using Dia2Lib;
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+
 using Microsoft.Diagnostics.NETCore.Client;
 using Microsoft.Diagnostics.Tracing;
-using Microsoft.Diagnostics.Tracing.Session;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Diagnostics.Tracing;
-using System.Reflection;
-using System.Threading.Tasks;
 using System.Linq;
+using System.Reflection;
+using Tracing.Tests.Common;
 
-namespace EventListenerTest
+namespace Tracing.Tests.AllOverloadsTest
 {
-    [EventSource(Name = "AllOverloadsEventSource")]
+    [EventSource(Name = "Test.AllOverloadsEventSource")]
     class AllOverloadsEventSource : EventSource
     {
         [Event(1)]
@@ -87,6 +87,12 @@ namespace EventListenerTest
             WriteEvent(12, s);
         }
 
+        [Event(13)]
+        public void TestEvent13(long l, byte[] array)
+        {
+            WriteEvent(13, l, array);
+        }
+
         [Event(14)]
         public void TestEvent14(long l)
         {
@@ -110,95 +116,87 @@ namespace EventListenerTest
         {
             WriteEvent(17);
         }
-
-        [Event(18)]
-        public void TestEvent18(long l, byte[] array)
-        {
-            WriteEvent(18, l, array);
-        }
     }
 
     internal class Program
     {
-        private static int Main(string[] args)
+        private static Dictionary<string, List<Tuple<string, object>>> _methodCalls = new Dictionary<string, List<Tuple<string, object>>>();
+
+        private static Dictionary<string, ExpectedEventCount> _expectedEventCounts = new Dictionary<string, ExpectedEventCount>()
         {
-            var client = new DiagnosticsClient(Environment.ProcessId);
+            { "Test.AllOverloadsEventSource", 17 }
+        };
 
-            var provider = new EventPipeProvider("AllOverloadsEventSource", EventLevel.Verbose);
-            using (var session = client.StartEventPipeSession(provider, false))
-            using (var source = new EventPipeEventSource(session.EventStream))
+        private static Func<EventPipeEventSource, Func<int>> _ValidateEvents = (source) =>
+        {
+            source.Dynamic.All += traceEvent =>
             {
-                Dictionary<string, List<Tuple<string, object>>> methodCalls = new Dictionary<string, List<Tuple<string, object>>>();
-
-                using (AllOverloadsEventSource myEventSource = new AllOverloadsEventSource())
+                if (traceEvent.ProviderName != "Test.AllOverloadsEventSource")
                 {
-                    foreach (MethodInfo testMethod in myEventSource.GetType().GetMethods())
+                    return;
+                }
+
+                if (!_methodCalls.ContainsKey(traceEvent.EventName))
+                {
+                    throw new ArgumentException($"Event {traceEvent.EventName} is an unknown event");
+                }
+
+                List<Tuple<string, object>> methodArgs = _methodCalls[traceEvent.EventName];
+                if (methodArgs.Count != traceEvent.PayloadNames.Length) 
+                {
+                    throw new Exception($"Event {traceEvent.EventName} has mismatched argument count");
+                }
+
+                for (int i = 0; i < methodArgs.Count; ++i)
+                {
+                    string name = traceEvent.PayloadNames[i];
+                    Tuple<string, object> tuple= methodArgs[i];
+                    if (name != tuple.Item1)
                     {
-                        if (testMethod.Name.StartsWith("TestEvent"))
+                        throw new Exception($"Event {traceEvent.EventName} arg {name} has mismatched names {name} and {tuple.Item1}");
+                    }
+
+                    object payloadValue = traceEvent.PayloadByName(name);
+                    object sentValue = tuple.Item2;
+                    VerifyObjectsEqual(traceEvent.EventName, name, payloadValue, sentValue);
+                }
+            };
+
+
+            return () => 100;
+        };
+
+        private static Action _eventGeneratingAction = () =>
+        {
+            using (AllOverloadsEventSource myEventSource = new AllOverloadsEventSource())
+            {
+                foreach (MethodInfo testMethod in myEventSource.GetType().GetMethods())
+                {
+                    if (testMethod.Name.StartsWith("TestEvent"))
+                    {
+                        List<Tuple<string, object>> methodCallArgs = new List<Tuple<string, object>>();
+                        foreach (ParameterInfo info in testMethod.GetParameters())
                         {
-                            List<Tuple<string, object>> methodCallArgs = new List<Tuple<string, object>>();
-                            foreach (ParameterInfo info in testMethod.GetParameters())
-                            {
-                                object arg = GetObjectForParameterInfo(info);
-                                methodCallArgs.Add(Tuple.Create(info.Name ?? string.Empty, arg));
-                            }
-
-                            methodCalls.Add(testMethod.Name, methodCallArgs);
-
-                            testMethod.Invoke(myEventSource, methodCallArgs.Select(x => x.Item2).ToArray());
+                            object arg = GetObjectForParameterInfo(info);
+                            methodCallArgs.Add(Tuple.Create(info.Name ?? string.Empty, arg));
                         }
+
+                        _methodCalls.Add(testMethod.Name, methodCallArgs);
+
+                        testMethod.Invoke(myEventSource, methodCallArgs.Select(x => x.Item2).ToArray());
                     }
                 }
-
-                int eventCount = 0;
-                source.AllEvents += traceEvent =>
-                    {
-                        if (traceEvent.ProviderName != "AllOverloadsEventSource")
-                        {
-                            return;
-                        }
-
-                        ++eventCount;
-                        if (!methodCalls.ContainsKey(traceEvent.EventName))
-                        {
-                            throw new ArgumentException($"Event {traceEvent.EventName} is an unknown event");
-                        }
-
-                        List<Tuple<string, object>> methodArgs = methodCalls[traceEvent.EventName];
-                        if (methodArgs.Count != traceEvent.PayloadNames.Length) 
-                        {
-                            throw new Exception($"Event {traceEvent.EventName} has mismatched argument count");
-                        }
-
-                        for (int i = 0; i < methodArgs.Count; ++i)
-                        {
-                            string name = traceEvent.PayloadNames[i];
-                            Tuple<string, object> tuple= methodArgs[i];
-                            if (name != tuple.Item1)
-                            {
-                                throw new Exception($"Event {traceEvent.EventName} arg {name} has mismatched names {name} and {tuple.Item1}");
-                            }
-
-                            object payloadValue = traceEvent.PayloadByName(name);
-                            object sentValue = tuple.Item2;
-                            VerifyObjectsEqual(traceEvent.EventName, name, payloadValue, sentValue);
-                        }
-                    };
-
-                Task processTask = Task.Run(source.Process);
-                session.Stop();
-
-                processTask.Wait();
-
-                if (eventCount > 0)
-                {
-                    // We would have thrown an exception for any errors
-                    return 100;
-                }
-
-                Console.WriteLine("Test failed because no events were seen.");
-                return -1;
             }
+        };
+
+        private static int Main(string[] args)
+        {
+            var providers = new List<EventPipeProvider>()
+            {
+                new EventPipeProvider("Test.AllOverloadsEventSource", EventLevel.Verbose)
+            };
+
+            return IpcTraceTest.RunAndValidateEventCounts(_expectedEventCounts, _eventGeneratingAction, providers, 1024, _ValidateEvents);
         }
 
         private static void VerifyObjectsEqual(string eventName, string argName, object payloadValue, object sentValue)
@@ -208,25 +206,7 @@ namespace EventListenerTest
                 throw new Exception($"Event {eventName} mismatched arg types for arg {argName}. Saw {payloadValue.GetType()} and {sentValue.GetType()}");
             }
 
-            if (payloadValue.GetType() == typeof(object[]))
-            {
-                object[] lhs = (object[]) payloadValue;
-                object[] rhs = (object[]) sentValue;
-
-                if (lhs.Length != rhs.Length)
-                {
-                    throw new Exception($"Event {eventName} arg {argName} saw mismatched array length");
-                }
-
-                for (int i = 0; i < lhs.Length; ++i)
-                {
-                    if (!lhs[i].Equals(rhs[i]))
-                    {
-                        throw new Exception($"Event {eventName} arg {argName} saw mismatched array args at index {i} {lhs[i]} {rhs[i]}");
-                    }
-                }
-            }
-            else if (payloadValue.GetType() == typeof(byte[]))
+            if (payloadValue.GetType() == typeof(byte[]))
             {
                 byte[] lhs = (byte[])payloadValue;
                 byte[] rhs = (byte[])sentValue;
@@ -240,6 +220,12 @@ namespace EventListenerTest
                 {
                     if (lhs[i] != (rhs[i]))
                     {
+                        for (int j = 0; j < lhs.Length; ++j)
+                        {
+                            Console.Write($"lhs[{j}]={lhs[j]} rhs[{j}]={rhs[j]}");
+                        }
+
+                        Console.WriteLine();
                         throw new Exception($"Event {eventName} arg {argName} saw mismatched byte args at index {i} {lhs[i]} {rhs[i]}");
                     }
                 }
@@ -265,15 +251,11 @@ namespace EventListenerTest
             }
             else if (info.ParameterType == typeof(long))
             {
-                return 123456;
+                return 123456L;
             }
             else if (info.ParameterType == typeof(byte[]))
             {
                 return new byte[] { 1, 2, 3, 4 };
-            }
-            else if (info.ParameterType == typeof(object[]))
-            {
-                return new object[] { 1, "a string", new byte[] { 1, 2, 3 } };
             }
 
             throw new ArgumentException("Saw unexpected type");
