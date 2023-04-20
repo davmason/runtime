@@ -21,6 +21,14 @@
 #define FMT_CODE_ADDR "%p"
 #endif
 
+#ifndef __ANDROID__
+#define TEMP_DIRECTORY_PATH "/tmp/"
+#else
+// On Android, "/tmp/" doesn't exist; temporary files should go to
+// /data/local/tmp/
+#define TEMP_DIRECTORY_PATH "/data/local/tmp/"
+#endif
+
 Volatile<bool> PerfMap::s_enabled = false;
 PerfMap * PerfMap::s_Current = nullptr;
 bool PerfMap::s_ShowOptimizationTiers = false;
@@ -64,14 +72,15 @@ void PerfMap::Initialize()
         SString path;
         if (len > 0)
         {
-            path.Printf("%S", jitdumpPath, pid);
+            path.Printf("%S", jitdumpPath);
         }
         else
         {
-            path.Printf("%S", TEMP_DIRECTORY_PATH, pid);
+            path.Printf("%S", TEMP_DIRECTORY_PATH);
         }
 
-        PAL_PerfJitDump_Start(path.GetASCII());
+        StackScratchBuffer scratch;
+        PAL_PerfJitDump_Start(path.GetANSI(scratch));
 #endif // CROSSGEN_COMPILE
     }
 }
