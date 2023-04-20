@@ -72,11 +72,11 @@ void PerfMap::Initialize()
         SString path;
         if (len > 0)
         {
-            path.Printf("%S", jitdumpPath);
+            path.Printf("%s", jitdumpPath);
         }
         else
         {
-            path.Printf("%S", TEMP_DIRECTORY_PATH);
+            path.Printf("%s", TEMP_DIRECTORY_PATH);
         }
 
         StackScratchBuffer scratch;
@@ -111,7 +111,7 @@ PerfMap::PerfMap(int pid)
     // Build the path to the map file on disk.
     WCHAR tempPath[MAX_LONGPATH+1];
     SString path;
-    path.Printf("%Sperf-%d.map", TEMP_DIRECTORY_PATH, pid);
+    path.Printf("%sperf-%d.map", TEMP_DIRECTORY_PATH, pid);
 
     // Open the map file for writing.
     OpenFile(path);
