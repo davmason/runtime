@@ -61,12 +61,17 @@ void PerfMap::Initialize()
         // Keep comment here to make it searchable.
         DWORD len = GetEnvironmentVariableA("COMPlus_PerfMapJitDumpPath", jitdumpPath, sizeof(jitdumpPath) - 1);
 
-        if (len == 0)
+        SString path;
+        if (len > 0)
         {
-            GetTempPathA(sizeof(jitdumpPath) - 1, jitdumpPath);
+            path.Printf("%S", jitdumpPath, pid);
+        }
+        else
+        {
+            path.Printf("%S", TEMP_DIRECTORY_PATH, pid);
         }
 
-        PAL_PerfJitDump_Start(jitdumpPath);
+        PAL_PerfJitDump_Start(path.GetASCII());
 #endif // CROSSGEN_COMPILE
     }
 }
@@ -96,13 +101,8 @@ PerfMap::PerfMap(int pid)
 
     // Build the path to the map file on disk.
     WCHAR tempPath[MAX_LONGPATH+1];
-    if(!GetTempPathW(MAX_LONGPATH, tempPath))
-    {
-        return;
-    }
-
     SString path;
-    path.Printf("%Sperf-%d.map", &tempPath, pid);
+    path.Printf("%Sperf-%d.map", TEMP_DIRECTORY_PATH, pid);
 
     // Open the map file for writing.
     OpenFile(path);
