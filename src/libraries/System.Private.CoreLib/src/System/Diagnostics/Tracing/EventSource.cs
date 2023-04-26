@@ -2791,10 +2791,7 @@ namespace System.Diagnostics.Tracing
         // Today, we only send the manifest to ETW, custom listeners don't get it.
         private unsafe void SendManifest(byte[]? rawManifest)
         {
-            if (rawManifest == null
-                // Don't send the manifest for NativeRuntimeEventSource, it is conceptually
-                // an extension of the native coreclr provider
-                || m_name.Equals("Microsoft-Windows-DotNETRuntime"))
+            if (rawManifest == null)
             {
                 return;
             }
@@ -3030,7 +3027,14 @@ namespace System.Diagnostics.Tracing
             EventManifestOptions flags = EventManifestOptions.None)
         {
             ManifestBuilder? manifest = null;
-            bool bNeedsManifest = source != null ? !source.SelfDescribingEvents : true;
+
+            bool bNeedsManifest = true;
+            if (source != null &&
+                (source.SelfDescribingEvents || source.GetType() == typeof(NativeRuntimeEventSource)))
+            {
+                bNeedsManifest = false;
+            }
+
             Exception? exception = null; // exception that might get raised during validation b/c we couldn't/didn't recover from a previous error
             byte[]? res = null;
 
@@ -3056,21 +3060,21 @@ namespace System.Diagnostics.Tracing
                 if (eventSourceAttrib != null && eventSourceAttrib.LocalizationResources != null)
                     resources = new ResourceManager(eventSourceAttrib.LocalizationResources, eventSourceType.Assembly);
 
-                if (source is not null)
+                if (bNeedsManifest && source is not null)
                 {
                     // We have the source so don't need to use reflection to get the Name and Guid
                     manifest = new ManifestBuilder(source.Name, source.Guid, eventSourceDllName, resources, flags);
                 }
-                else
+                else if (bNeedsManifest)
                 {
                     manifest = new ManifestBuilder(GetName(eventSourceType, flags), GetGuid(eventSourceType), eventSourceDllName,
                                                resources, flags);
                 }
 
                 // Add an entry unconditionally for event ID 0 which will be for a string message.
-                manifest.StartEvent("EventSourceMessage", new EventAttribute(0) { Level = EventLevel.LogAlways, Task = (EventTask)0xFFFE });
-                manifest.AddEventParameter(typeof(string), "message");
-                manifest.EndEvent();
+                manifest?.StartEvent("EventSourceMessage", new EventAttribute(0) { Level = EventLevel.LogAlways, Task = (EventTask)0xFFFE });
+                manifest?.AddEventParameter(typeof(string), "message");
+                manifest?.EndEvent();
 
                 // eventSourceType must be sealed and must derive from this EventSource
                 if ((flags & EventManifestOptions.Strict) != 0)
@@ -3079,11 +3083,11 @@ namespace System.Diagnostics.Tracing
 
                     if (!typeMatch)
                     {
-                        manifest.ManifestError(SR.EventSource_TypeMustDeriveFromEventSource);
+                        manifest?.ManifestError(SR.EventSource_TypeMustDeriveFromEventSource);
                     }
                     if (!eventSourceType.IsAbstract && !eventSourceType.IsSealed)
                     {
-                        manifest.ManifestError(SR.EventSource_TypeMustBeSealedOrAbstract);
+                        manifest?.ManifestError(SR.EventSource_TypeMustBeSealedOrAbstract);
                     }
                 }
 
@@ -3099,7 +3103,7 @@ namespace System.Diagnostics.Tracing
                     {
                         if (eventSourceType.IsAbstract)
                         {
-                            manifest.ManifestError(SR.Format(SR.EventSource_AbstractMustNotDeclareKTOC, nestedType.Name));
+                            manifest?.ManifestError(SR.Format(SR.EventSource_AbstractMustNotDeclareKTOC, nestedType.Name));
                         }
                         else
                         {
@@ -3112,10 +3116,10 @@ namespace System.Diagnostics.Tracing
                 }
                 // ensure we have keywords for the session-filtering reserved bits
                 {
-                    manifest.AddKeyword("Session3", (long)0x1000 << 32);
-                    manifest.AddKeyword("Session2", (long)0x2000 << 32);
-                    manifest.AddKeyword("Session1", (long)0x4000 << 32);
-                    manifest.AddKeyword("Session0", (long)0x8000 << 32);
+                    manifest?.AddKeyword("Session3", (long)0x1000 << 32);
+                    manifest?.AddKeyword("Session2", (long)0x2000 << 32);
+                    manifest?.AddKeyword("Session1", (long)0x4000 << 32);
+                    manifest?.AddKeyword("Session0", (long)0x8000 << 32);
                 }
 
                 if (eventSourceType != typeof(EventSource))
@@ -3142,7 +3146,7 @@ namespace System.Diagnostics.Tracing
                         {
                             if (eventAttribute != null)
                             {
-                                manifest.ManifestError(SR.Format(SR.EventSource_AbstractMustNotDeclareEventMethods, method.Name, eventAttribute.EventId));
+                                manifest?.ManifestError(SR.Format(SR.EventSource_AbstractMustNotDeclareEventMethods, method.Name, eventAttribute.EventId));
                             }
                             continue;
                         }
@@ -3171,12 +3175,12 @@ namespace System.Diagnostics.Tracing
                         }
                         else if (eventAttribute.EventId <= 0)
                         {
-                            manifest.ManifestError(SR.EventSource_NeedPositiveId, true);
+                            manifest?.ManifestError(SR.EventSource_NeedPositiveId, true);
                             continue;   // don't validate anything else for this event
                         }
                         if (method.Name.LastIndexOf('.') >= 0)
                         {
-                            manifest.ManifestError(SR.Format(SR.EventSource_EventMustNotBeExplicitImplementation, method.Name, eventAttribute.EventId));
+                            manifest?.ManifestError(SR.Format(SR.EventSource_EventMustNotBeExplicitImplementation, method.Name, eventAttribute.EventId));
                         }
 
                         eventId++;
@@ -3205,7 +3209,7 @@ namespace System.Diagnostics.Tracing
 
                                         // Add a task that is just the task name for the start event.   This suppress the auto-task generation
                                         // That would otherwise happen (and create 'TaskName'Start as task name rather than just 'TaskName'
-                                        manifest.AddTask(taskName, (int)eventAttribute.Task);
+                                        manifest?.AddTask(taskName, (int)eventAttribute.Task);
                                     }
                                 }
                                 else if (eventAttribute.Opcode == EventOpcode.Stop)
@@ -3241,12 +3245,12 @@ namespace System.Diagnostics.Tracing
                         bool hasRelatedActivityID = RemoveFirstArgIfRelatedActivityId(ref args);
                         if (!(source != null && source.SelfDescribingEvents))
                         {
-                            manifest.StartEvent(eventName, eventAttribute);
+                            manifest?.StartEvent(eventName, eventAttribute);
                             for (int fieldIdx = 0; fieldIdx < args.Length; fieldIdx++)
                             {
-                                manifest.AddEventParameter(args[fieldIdx].ParameterType, args[fieldIdx].Name!);
+                                manifest?.AddEventParameter(args[fieldIdx].ParameterType, args[fieldIdx].Name!);
                             }
-                            manifest.EndEvent();
+                            manifest?.EndEvent();
                         }
 
                         if (source != null || (flags & EventManifestOptions.Strict) != 0)
@@ -3260,16 +3264,21 @@ namespace System.Diagnostics.Tracing
                             // and is not required for the manifest
                             if (eventAttribute.Channel != EventChannel.None)
                             {
+                                if (manifest == null)
+                                {
+                                    throw new ArgumentException(SR.Format(SR.EventSource_ChannelUnsupported), method.Name);
+                                }
+
                                 unchecked
                                 {
-                                    eventAttribute.Keywords |= (EventKeywords)manifest.GetChannelKeyword(eventAttribute.Channel, (ulong)eventAttribute.Keywords);
+                                    eventAttribute.Keywords |= (EventKeywords)manifest!.GetChannelKeyword(eventAttribute.Channel, (ulong)eventAttribute.Keywords);
                                 }
                             }
 #endif
-                            if (manifest.HasResources)
+                            if (manifest != null && manifest!.HasResources)
                             {
                                 string eventKey = "event_" + eventName;
-                                if (manifest.GetLocalizedMessage(eventKey, CultureInfo.CurrentUICulture, etwFormat: false) is string msg)
+                                if (manifest?.GetLocalizedMessage(eventKey, CultureInfo.CurrentUICulture, etwFormat: false) is string msg)
                                 {
                                     // overwrite inline message with the localized message
                                     eventAttribute.Message = msg;
@@ -3290,16 +3299,16 @@ namespace System.Diagnostics.Tracing
                     TrimEventDescriptors(ref eventData);
                     source.m_eventData = eventData;     // officially initialize it. We do this at most once (it is racy otherwise).
 #if FEATURE_MANAGED_ETW_CHANNELS
-                    source.m_channelData = manifest.GetChannelData();
+                    source.m_channelData = manifest?.GetChannelData();
 #endif
                 }
 
                 // if this is an abstract event source we've already performed all the validation we can
-                if (!eventSourceType.IsAbstract && (source == null || !source.SelfDescribingEvents))
+                if (bNeedsManifest && !eventSourceType.IsAbstract && (source == null || !source.SelfDescribingEvents))
                 {
                     bNeedsManifest = (flags & EventManifestOptions.OnlyIfNeededForRegistration) == 0
 #if FEATURE_MANAGED_ETW_CHANNELS
-                                            || manifest.GetChannelData().Length > 0
+                                            || manifest?.GetChannelData().Length > 0
 #endif
 ;
 
@@ -3307,7 +3316,7 @@ namespace System.Diagnostics.Tracing
                     if (!bNeedsManifest && (flags & EventManifestOptions.Strict) == 0)
                         return null;
 
-                    res = manifest.CreateManifest();
+                    res = manifest?.CreateManifest();
                 }
             }
             catch (Exception e)
@@ -3323,10 +3332,10 @@ namespace System.Diagnostics.Tracing
             {
                 string msg = string.Empty;
 
-                if (manifest?.Errors.Count > 0)
+                if (manifest != null && manifest!.Errors.Count > 0)
                 {
                     bool firstError = true;
-                    foreach (string error in manifest.Errors)
+                    foreach (string error in manifest!.Errors)
                     {
                         if (!firstError)
                             msg += System.Environment.NewLine;
@@ -3361,7 +3370,7 @@ namespace System.Diagnostics.Tracing
 
         // adds a enumeration (keyword, opcode, task or channel) represented by 'staticField'
         // to the manifest.
-        private static void AddProviderEnumKind(ManifestBuilder manifest, FieldInfo staticField, string providerEnumKind)
+        private static void AddProviderEnumKind(ManifestBuilder? manifest, FieldInfo staticField, string providerEnumKind)
         {
             bool reflectionOnly = staticField.Module.Assembly.ReflectionOnly;
             Type staticFieldType = staticField.FieldType;
@@ -3369,31 +3378,31 @@ namespace System.Diagnostics.Tracing
             {
                 if (providerEnumKind != "Opcodes") goto Error;
                 int value = (int)staticField.GetRawConstantValue()!;
-                manifest.AddOpcode(staticField.Name, value);
+                manifest?.AddOpcode(staticField.Name, value);
             }
             else if (!reflectionOnly && (staticFieldType == typeof(EventTask)) || AttributeTypeNamesMatch(staticFieldType, typeof(EventTask)))
             {
                 if (providerEnumKind != "Tasks") goto Error;
                 int value = (int)staticField.GetRawConstantValue()!;
-                manifest.AddTask(staticField.Name, value);
+                manifest?.AddTask(staticField.Name, value);
             }
             else if (!reflectionOnly && (staticFieldType == typeof(EventKeywords)) || AttributeTypeNamesMatch(staticFieldType, typeof(EventKeywords)))
             {
                 if (providerEnumKind != "Keywords") goto Error;
                 ulong value = unchecked((ulong)(long)staticField.GetRawConstantValue()!);
-                manifest.AddKeyword(staticField.Name, value);
+                manifest?.AddKeyword(staticField.Name, value);
             }
 #if FEATURE_MANAGED_ETW_CHANNELS && FEATURE_ADVANCED_MANAGED_ETW_CHANNELS
             else if (!reflectionOnly && (staticFieldType == typeof(EventChannel)) || AttributeTypeNamesMatch(staticFieldType, typeof(EventChannel)))
             {
                 if (providerEnumKind != "Channels") goto Error;
                 var channelAttribute = (EventChannelAttribute)GetCustomAttributeHelper(staticField, typeof(EventChannelAttribute));
-                manifest.AddChannel(staticField.Name, (byte)staticField.GetRawConstantValue(), channelAttribute);
+                manifest?.AddChannel(staticField.Name, (byte)staticField.GetRawConstantValue(), channelAttribute);
             }
 #endif
             return;
             Error:
-            manifest.ManifestError(SR.Format(SR.EventSource_EnumKindMismatch, staticField.FieldType.Name, providerEnumKind));
+            manifest?.ManifestError(SR.Format(SR.EventSource_EnumKindMismatch, staticField.FieldType.Name, providerEnumKind));
         }
 
         // Helper used by code:CreateManifestAndDescriptors to add a code:EventData descriptor for a method
@@ -3510,19 +3519,20 @@ namespace System.Diagnostics.Tracing
         // index for two distinct events etc.  Throws exceptions when it finds something wrong.
         private static void DebugCheckEvent(ref Dictionary<string, string>? eventsByName,
             EventMetadata[] eventData, MethodInfo method, EventAttribute eventAttribute,
-            ManifestBuilder manifest, EventManifestOptions options)
+            ManifestBuilder? manifest, EventManifestOptions options)
         {
             int evtId = eventAttribute.EventId;
             string evtName = method.Name;
             int eventArg = GetHelperCallFirstArg(method);
             if (eventArg >= 0 && evtId != eventArg)
             {
-                manifest.ManifestError(SR.Format(SR.EventSource_MismatchIdToWriteEvent, evtName, evtId, eventArg), true);
+                // TODO: not having a ManifestBuilder will skip all this checking...
+                manifest?.ManifestError(SR.Format(SR.EventSource_MismatchIdToWriteEvent, evtName, evtId, eventArg), true);
             }
 
             if (evtId < eventData.Length && eventData[evtId].Descriptor.EventId != 0)
             {
-                manifest.ManifestError(SR.Format(SR.EventSource_EventIdReused, evtName, evtId), true);
+                manifest?.ManifestError(SR.Format(SR.EventSource_EventIdReused, evtName, evtId), true);
             }
 
             // We give a task to things if they don't have one.
@@ -3536,7 +3546,7 @@ namespace System.Diagnostics.Tracing
 
                 if (eventData[idx].Descriptor.Task == (int)eventAttribute.Task && eventData[idx].Descriptor.Opcode == (int)eventAttribute.Opcode)
                 {
-                    manifest.ManifestError(SR.Format(SR.EventSource_TaskOpcodePairReused,
+                    manifest?.ManifestError(SR.Format(SR.EventSource_TaskOpcodePairReused,
                                             evtName, evtId, eventData[idx].Name, idx));
                     // If we are not strict stop on first error.   We have had problems with really large providers taking forever.  because of many errors.
                     if ((options & EventManifestOptions.Strict) == 0)
@@ -3561,7 +3571,7 @@ namespace System.Diagnostics.Tracing
                 }
                 if (failure)
                 {
-                    manifest.ManifestError(SR.Format(SR.EventSource_EventMustHaveTaskIfNonDefaultOpcode, evtName, evtId));
+                    manifest?.ManifestError(SR.Format(SR.EventSource_EventMustHaveTaskIfNonDefaultOpcode, evtName, evtId));
                 }
             }
 
@@ -3578,7 +3588,7 @@ namespace System.Diagnostics.Tracing
 
             if (eventsByName.ContainsKey(evtName))
             {
-                manifest.ManifestError(SR.Format(SR.EventSource_EventNameReused, evtName), true);
+                manifest?.ManifestError(SR.Format(SR.EventSource_EventNameReused, evtName), true);
             }
 
             eventsByName[evtName] = evtName;
