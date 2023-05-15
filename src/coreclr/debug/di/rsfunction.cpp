@@ -623,34 +623,33 @@ HRESULT CordbFunction::CreateNativeBreakpoint(ICorDebugFunctionBreakpoint **ppBr
 //-----------------------------------------------------------------------------
 HRESULT CordbFunction::DisableOptimizations()
 {
-    HRESULT hr;
     PUBLIC_API_ENTRY(this);
     FAIL_IF_NEUTERED(this);
+    ATT_REQUIRE_STOPPED_MAY_FAIL(GetProcess());
+
+    HRESULT hr = S_OK;
 
     CordbProcess * pProcess = GetProcess();
     RSLockHolder lockHolder(pProcess->GetProcessLock());
-    pProcess->ClearPatchTable();
 
-    DebuggerIPCEvent * pEvent = (DebuggerIPCEvent *) _alloca(CorDBIPC_BUFFER_SIZE);
+    DebuggerIPCEvent event;
     CordbAppDomain * pAppDomain = GetAppDomain();
     _ASSERTE (pAppDomain != NULL);
 
-    pProcess->InitIPCEvent(pEvent, DB_IPCE_DISABLE_OPS, true, pAppDomain->GetADToken());
-    pEvent->DisableOptData.funcMetadataToken = m_MDToken;
-    pEvent->DisableOptData.pModule = m_pModule->GetRuntimeModule();
+    pProcess->InitIPCEvent(&event, DB_IPCE_DISABLE_OPS, true, pAppDomain->GetADToken());
+    event.DisableOptData.funcMetadataToken = m_MDToken;
+    event.DisableOptData.pModule = m_pModule->GetRuntimeModule();
 
     lockHolder.Release();
-    hr = pProcess->SendIPCEvent(pEvent, CorDBIPC_BUFFER_SIZE);
+    hr = pProcess->m_cordb->SendIPCEvent(pProcess, &event, sizeof(DebuggerIPCEvent));
     lockHolder.Acquire();
 
-    hr = WORST_HR(hr, pEvent->hr);
+    // TODO: ?
+    m_nativeCode.Assign(NULL);
 
-    if (FAILED(hr))
-    {
-        return hr;
-    }
+    _ASSERTE(event.type == DB_IPCE_DISABLE_OPS_RESULT);
 
-    return hr;
+    return event.hr;
 }
 
 //-----------------------------------------------------------------------------

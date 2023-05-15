@@ -2017,7 +2017,6 @@ struct MSLAYOUT DebuggerIPCEvent
         {
             mdMethodDef funcMetadataToken;
             VMPTR_Module pModule;
-            VMPTR_AppDomain vmAppDomain;
         } DisableOptData;
 
         struct MSLAYOUT

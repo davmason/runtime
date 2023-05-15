@@ -80,7 +80,7 @@ private:
     BOOL CompileCodeVersion(NativeCodeVersion nativeCodeVersion);
     void ActivateCodeVersion(NativeCodeVersion nativeCodeVersion);
 public:
-    void DeOptimizeMethod(MethodDesc * pMethodDesc);
+    HRESULT DeOptimizeMethod(MethodDesc * pMethodDesc);
 
 #ifndef DACCESS_COMPILE
 public:

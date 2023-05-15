@@ -945,29 +945,42 @@ void TieredCompilationManager::OptimizeMethod(NativeCodeVersion nativeCodeVersio
     }
 }
 
-void TieredCompilationManager::DeOptimizeMethod(MethodDesc * pMethodDesc)
+HRESULT TieredCompilationManager::DeOptimizeMethod(MethodDesc * pMethodDesc)
 {
-    //debugger.cpp is in the vm
-    NativeCodeVersion newNativeCodeVersion;
-    
-    NativeCodeVersion::OptimizationTier debugTier = NativeCodeVersion::OptimizationTierDebug;
-    CodeVersionManager * pCodeVersionManager = pMethodDesc->GetCodeVersionManager();
-    ILCodeVersion ilCodeVersion = pCodeVersionManager->GetActiveILCodeVersion(pMethodDesc);
-    //Build a new NativeCodeVersion
-    HRESULT hr = ilCodeVersion.AddNativeCodeVersion(pMethodDesc, debugTier, &newNativeCodeVersion);
-    if (FAILED(hr))
+    CONTRACTL
     {
-        printf("The thing failed with hr and add native code version.");
+        THROWS;
+        GC_NOTRIGGER;
     }
-    STANDARD_VM_CONTRACT;//What is this here for? 
-    if (CompileCodeVersion(newNativeCodeVersion))
+    CONTRACTL_END;
+
+    NativeCodeVersion newNativeCodeVersion;
+    HRESULT hr = S_OK;
+
+    if (pMethodDesc->IsVersionable())
     {
-        ActivateCodeVersion(newNativeCodeVersion);
+        CodeVersionManager::LockHolder codeVersioningLockHolder;
+        
+        CodeVersionManager::SetInitialNativeCodeVersionMayNotBeTheDefaultNativeCodeVersion();
+
+        NativeCodeVersion::OptimizationTier debugTier = NativeCodeVersion::OptimizationTierDebug;
+        CodeVersionManager * pCodeVersionManager = pMethodDesc->GetCodeVersionManager();
+        ILCodeVersion ilCodeVersion = pCodeVersionManager->GetActiveILCodeVersion(pMethodDesc);
+        //Build a new NativeCodeVersion
+        hr = ilCodeVersion.AddNativeCodeVersion(pMethodDesc, debugTier, &newNativeCodeVersion);
+        if (FAILED(hr))
+        {
+            return hr;
+        }
+
+        hr = ilCodeVersion.SetActiveNativeCodeVersion(newNativeCodeVersion);
     }
     else
     {
-        printf("CompileCodeVersion returned false.");
+        hr = E_FAIL;
     }
+
+    return hr;
 }
 
 // Compiles new optimized code for a method.
@@ -1160,6 +1173,11 @@ CORJIT_FLAGS TieredCompilationManager::GetJitFlags(PrepareCodeConfig *config)
 
     switch (nativeCodeVersion.GetOptimizationTier())
     {
+        case NativeCodeVersion::OptimizationTierDebug:
+            flags.Set(CORJIT_FLAGS::CORJIT_FLAG_DEBUG_CODE);
+            flags.Set(CORJIT_FLAGS::CORJIT_FLAG_DEBUG_INFO);
+            break;
+
         case NativeCodeVersion::OptimizationTier0Instrumented:
             _ASSERT(g_pConfig->TieredCompilation_QuickJit());
             flags.Set(CORJIT_FLAGS::CORJIT_FLAG_BBINSTR);
