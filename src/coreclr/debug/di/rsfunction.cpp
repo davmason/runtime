@@ -644,9 +644,6 @@ HRESULT CordbFunction::DisableOptimizations()
     hr = pProcess->m_cordb->SendIPCEvent(pProcess, &event, sizeof(DebuggerIPCEvent));
     lockHolder.Acquire();
 
-    // TODO: ?
-    m_nativeCode.Assign(NULL);
-
     _ASSERTE(event.type == DB_IPCE_DISABLE_OPS_RESULT);
 
     return event.hr;
