@@ -945,7 +945,7 @@ void TieredCompilationManager::OptimizeMethod(NativeCodeVersion nativeCodeVersio
     }
 }
 
-HRESULT TieredCompilationManager::DeOptimizeMethod(MethodDesc * pMethodDesc)
+HRESULT TieredCompilationManager::DeOptimizeMethodHelper(MethodDesc * pMethodDesc)
 {
     CONTRACTL
     {
@@ -954,20 +954,19 @@ HRESULT TieredCompilationManager::DeOptimizeMethod(MethodDesc * pMethodDesc)
     }
     CONTRACTL_END;
 
+    _ASSERTE(CodeVersionManager::IsLockOwnedByCurrentThread());
     NativeCodeVersion newNativeCodeVersion;
     HRESULT hr = S_OK;
 
-    if (pMethodDesc->IsVersionable())
+    if (pMethodDesc->IsVersionable() && !pMethodDesc->GetModule()->IsEditAndContinueEnabled())
     {
-        CodeVersionManager::LockHolder codeVersioningLockHolder;
         
         CodeVersionManager::SetInitialNativeCodeVersionMayNotBeTheDefaultNativeCodeVersion();
 
-        NativeCodeVersion::OptimizationTier debugTier = NativeCodeVersion::OptimizationTierDebug;
         CodeVersionManager * pCodeVersionManager = pMethodDesc->GetCodeVersionManager();
         ILCodeVersion ilCodeVersion = pCodeVersionManager->GetActiveILCodeVersion(pMethodDesc);
         //Build a new NativeCodeVersion
-        hr = ilCodeVersion.AddNativeCodeVersion(pMethodDesc, debugTier, &newNativeCodeVersion);
+        hr = ilCodeVersion.AddNativeCodeVersion(pMethodDesc, NativeCodeVersion::OptimizationTierDebug, &newNativeCodeVersion);
         if (FAILED(hr))
         {
             return hr;
@@ -978,6 +977,84 @@ HRESULT TieredCompilationManager::DeOptimizeMethod(MethodDesc * pMethodDesc)
     else
     {
         hr = E_FAIL;
+    }
+
+    if (FAILED(hr))
+    {
+        LOG((LF_TIEREDCOMPILATION, LL_INFO10000, "TieredCompilationManager::DeOptimizeMethodHelper Method=0x%pM (%s::%s), returned hr 0x%x\n",
+            pMethodDesc, pMethodDesc->m_pszDebugClassName, pMethodDesc->m_pszDebugMethodName,
+            hr));
+    }
+    return hr;
+}
+
+HRESULT TieredCompilationManager::DeOptimizeMethod(MethodDesc * pMethodDesc)
+{
+    CONTRACTL
+    {
+        THROWS;
+        GC_NOTRIGGER;
+    }
+    CONTRACTL_END;
+
+    CodeVersionManager::LockHolder codeVersioningLockHolder;
+
+    // First deoptimize the method itself
+    HRESULT hr = DeOptimizeMethodHelper(pMethodDesc);
+    if (FAILED(hr))
+    {
+        return hr;
+    }
+
+    // Now deoptimize anything that has inlined it in a R2R method
+    AppDomain::AssemblyIterator domainAssemblyIterator = SystemDomain::System()->DefaultDomain()->IterateAssembliesEx((AssemblyIterationFlags) (kIncludeLoaded | kIncludeExecution));
+    CollectibleAssemblyHolder<DomainAssembly *> pDomainAssembly;
+    NativeImageInliningIterator inlinerIter;
+    while (domainAssemblyIterator.Next(pDomainAssembly.This()))
+    {
+        Module * pModule = pDomainAssembly->GetModule();
+        if (pModule->HasReadyToRunInlineTrackingMap())
+        {
+            inlinerIter.Reset(pModule, MethodInModule(pMethodDesc->GetModule(), pMethodDesc->GetMemberDef()));
+
+            while (inlinerIter.Next())
+            {
+                MethodInModule inliner = inlinerIter.GetMethod();
+                _ASSERTE(TypeFromToken(inliner.m_methodDef) == mdtMethodDef);
+                MethodDesc *pInlinerMD = inliner.m_module->LookupMethodDef(inliner.m_methodDef);
+                DeOptimizeMethodHelper(pInlinerMD);
+            }
+        }
+    }
+
+    // Next any JIT methods
+    Module *pModule = pMethodDesc->GetModule();
+    if (pModule->HasJitInlineTrackingMap())
+    {
+        InlineSArray<MethodDesc *, 10> inliners;
+        auto lambda = [&](MethodDesc *inliner, MethodDesc *inlinee)
+        {
+            _ASSERTE(!inliner->IsNoMetadata());
+
+            if (inliner->IsIL())
+            {
+                inliners.Append(inliner);
+            }
+         
+            // Keep going
+            return true;
+        };
+
+        JITInlineTrackingMap *pMap = pModule->GetJitInlineTrackingMap();
+        pMap->VisitInliners(pMethodDesc, lambda);
+        
+        for (auto it = inliners.Begin(); it != inliners.End(); ++it)
+        {
+            Module *inlinerModule = (*it)->GetModule();
+            mdMethodDef inlinerMethodDef = (*it)->GetMemberDef();
+            MethodDesc *pInlinerMD = inlinerModule->LookupMethodDef(inlinerMethodDef);
+            DeOptimizeMethodHelper(pInlinerMD);
+        }
     }
 
     return hr;
@@ -1045,7 +1122,17 @@ void TieredCompilationManager::ActivateCodeVersion(NativeCodeVersion nativeCodeV
         bool mayHaveEntryPointSlotsToBackpatch = pMethod->MayHaveEntryPointSlotsToBackpatch();
         MethodDescBackpatchInfoTracker::ConditionalLockHolder slotBackpatchLockHolder(mayHaveEntryPointSlotsToBackpatch);
         CodeVersionManager::LockHolder codeVersioningLockHolder;
-
+        
+        NativeCodeVersion activeCodeVersion =
+                pMethod->GetCodeVersionManager()->GetActiveILCodeVersion(pMethod).GetActiveNativeCodeVersion(pMethod);
+        if (!activeCodeVersion.IsNull() && activeCodeVersion.GetOptimizationTier() == NativeCodeVersion::OptimizationTierDebug)
+        {
+            LOG((LF_TIEREDCOMPILATION, LL_INFO10000, "TieredCompilationManager::ActivateCodeVersion Method=0x%pM (%s::%s), code version id=0x%x. Skipping publishing code because method has been previously deoptimized.\n",
+                pMethod, pMethod->m_pszDebugClassName, pMethod->m_pszDebugMethodName,
+                nativeCodeVersion.GetVersionId()));
+            return;
+        }                
+           
         // As long as we are exclusively using any non-JumpStamp publishing for tiered compilation
         // methods this first attempt should succeed
         ilParent = nativeCodeVersion.GetILCodeVersion();

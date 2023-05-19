@@ -10444,8 +10444,9 @@ bool Debugger::HandleIPCEvent(DebuggerIPCEvent * pEvent)
     case DB_IPCE_DISABLE_OPS:
         {
             Module *pModule = pEvent->DisableOptData.pModule.GetRawPtr();
-            mdToken memberRef = pEvent->DisableOptData.funcMetadataToken;
-            MethodDesc *pMethodDesc = g_pEEInterface->FindLoadedMethodRefOrDef(pModule, memberRef);
+            mdToken methodDef = pEvent->DisableOptData.funcMetadataToken;
+            _ASSERTE(TypeFromToken(methodDef) == mdtMethodDef);
+            MethodDesc *pMethodDesc = pModule->LookupMethodDef(methodDef);
 
             HRESULT hr = E_INVALIDARG;
             if (pMethodDesc != NULL)

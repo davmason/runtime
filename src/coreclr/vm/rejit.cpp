@@ -418,82 +418,6 @@ COR_IL_MAP* ProfilerFunctionControl::GetInstrumentedMapEntries()
 }
 
 #ifndef DACCESS_COMPILE
-NativeImageInliningIterator::NativeImageInliningIterator() :
-        m_pModule(NULL),
-        m_dynamicBuffer(NULL),
-        m_dynamicBufferSize(0),
-        m_dynamicAvailable(0),
-        m_currentPos(-1)
-{
-
-}
-
-HRESULT NativeImageInliningIterator::Reset(Module *pInlinerModule, MethodInModule inlinee)
-{
-    _ASSERTE(pInlinerModule != NULL);
-    _ASSERTE(inlinee.m_module != NULL);
-
-    m_pModule = pInlinerModule;
-    m_inlinee = inlinee;
-
-    HRESULT hr = S_OK;
-    EX_TRY
-    {
-        // Trying to use the existing buffer
-        BOOL incompleteData;
-        Module *inlineeModule = m_inlinee.m_module;
-        mdMethodDef mdInlinee = m_inlinee.m_methodDef;
-        COUNT_T methodsAvailable = m_pModule->GetReadyToRunInliners(inlineeModule, mdInlinee, m_dynamicBufferSize, m_dynamicBuffer, &incompleteData);
-
-        // If the existing buffer is not large enough, reallocate.
-        if (methodsAvailable > m_dynamicBufferSize)
-        {
-            COUNT_T newSize = max(methodsAvailable, s_bufferSize);
-            m_dynamicBuffer = new MethodInModule[newSize];
-            m_dynamicBufferSize = newSize;
-
-            methodsAvailable = m_pModule->GetReadyToRunInliners(inlineeModule, mdInlinee, m_dynamicBufferSize, m_dynamicBuffer, &incompleteData);
-            _ASSERTE(methodsAvailable <= m_dynamicBufferSize);
-        }
-
-        m_dynamicAvailable = methodsAvailable;
-    }
-    EX_CATCH_HRESULT(hr);
-
-    if (FAILED(hr))
-    {
-        m_currentPos = s_failurePos;
-    }
-    else
-    {
-        m_currentPos = -1;
-    }
-
-    return hr;
-}
-
-BOOL NativeImageInliningIterator::Next()
-{
-    if (m_currentPos == s_failurePos)
-    {
-        return FALSE;
-    }
-
-    m_currentPos++;
-    return m_currentPos < m_dynamicAvailable;
-}
-
-MethodInModule NativeImageInliningIterator::GetMethod()
-{
-    // this evaluates true when m_currentPos == s_failurePos or m_currentPos == (COUNT_T)-1
-    // m_currentPos is an unsigned type
-    if (m_currentPos >= m_dynamicAvailable)
-    {
-        return MethodInModule();
-    }
-
-    return m_dynamicBuffer[m_currentPos];
-}
 
 //---------------------------------------------------------------------------------------
 // ReJitManager implementation
@@ -802,7 +726,6 @@ HRESULT ReJitManager::UpdateNativeInlinerActiveILVersions(
 
     // Iterate through all modules, for any that are NGEN or R2R need to check if there are inliners there and call
     // RequestReJIT on them
-    // TODO: is the default domain enough for coreclr?
     AppDomain::AssemblyIterator domainAssemblyIterator = SystemDomain::System()->DefaultDomain()->IterateAssembliesEx((AssemblyIterationFlags) (kIncludeLoaded | kIncludeExecution));
     CollectibleAssemblyHolder<DomainAssembly *> pDomainAssembly;
     NativeImageInliningIterator inlinerIter;
