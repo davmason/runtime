@@ -966,7 +966,7 @@ HRESULT TieredCompilationManager::DeOptimizeMethodHelper(MethodDesc * pMethodDes
         CodeVersionManager * pCodeVersionManager = pMethodDesc->GetCodeVersionManager();
         ILCodeVersion ilCodeVersion = pCodeVersionManager->GetActiveILCodeVersion(pMethodDesc);
         //Build a new NativeCodeVersion
-        hr = ilCodeVersion.AddNativeCodeVersion(pMethodDesc, NativeCodeVersion::OptimizationTierDebug, &newNativeCodeVersion);
+        hr = ilCodeVersion.AddILCodeVersion(pMethodDesc, NativeCodeVersion::OptimizationTierDebug, &newNativeCodeVersion);
         if (FAILED(hr))
         {
             return hr;

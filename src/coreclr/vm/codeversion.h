@@ -214,9 +214,11 @@ public:
 
     RejitFlags GetRejitState() const;
     BOOL GetEnableReJITCallback() const;
+    BOOL GetDebuggerDeoptimized() const;
 #ifndef DACCESS_COMPILE
     void SetRejitState(RejitFlags newState);
     void SetEnableReJITCallback(BOOL state);
+    void SetDebuggerDeoptimized(BOOL state);
 #endif
 
 #ifdef DACCESS_COMPILE
@@ -377,6 +379,7 @@ public:
     ILCodeVersion::RejitFlags GetRejitState() const;
     BOOL GetEnableReJITCallback() const;
     PTR_ILCodeVersionNode GetNextILVersionNode() const;
+    BOOL GetDebuggerDeoptimized();
 #ifndef DACCESS_COMPILE
     void SetIL(COR_ILMETHOD* pIL);
     void SetJitFlags(DWORD flags);
@@ -384,6 +387,7 @@ public:
     void SetRejitState(ILCodeVersion::RejitFlags newState);
     void SetEnableReJITCallback(BOOL state);
     void SetNextILVersionNode(ILCodeVersionNode* pNextVersionNode);
+    void SetDebuggerDeoptimized(BOOL state);
 #endif
 
 private:
