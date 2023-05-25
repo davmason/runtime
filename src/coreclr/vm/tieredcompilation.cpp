@@ -933,11 +933,12 @@ bool TieredCompilationManager::DoBackgroundWork(
 void TieredCompilationManager::OptimizeMethod(NativeCodeVersion nativeCodeVersion)
 {
     STANDARD_VM_CONTRACT;
-    if (nativeCodeVersion.GetOptimizationTier() == NativeCodeVersion::OptimizationTier::OptimizationTierDebug)
+    if (nativeCodeVersion.GetILCodeVersion().IsDebuggerDeoptimized())
     {
         //If it has been changed to Debug, leave it at that optimization level
         return;
     }
+
     _ASSERTE(nativeCodeVersion.GetMethodDesc()->IsEligibleForTieredCompilation());
     if (CompileCodeVersion(nativeCodeVersion))
     {
@@ -945,7 +946,7 @@ void TieredCompilationManager::OptimizeMethod(NativeCodeVersion nativeCodeVersio
     }
 }
 
-HRESULT TieredCompilationManager::DeOptimizeMethodHelper(MethodDesc * pMethodDesc)
+HRESULT TieredCompilationManager::DeoptimizeMethodHelper(Module* pModule, mdMethodDef methodDef)
 {
     CONTRACTL
     {
@@ -954,41 +955,42 @@ HRESULT TieredCompilationManager::DeOptimizeMethodHelper(MethodDesc * pMethodDes
     }
     CONTRACTL_END;
 
-    _ASSERTE(CodeVersionManager::IsLockOwnedByCurrentThread());
-    NativeCodeVersion newNativeCodeVersion;
+    _ASSERTE(!CodeVersionManager::IsLockOwnedByCurrentThread());
     HRESULT hr = S_OK;
+    ILCodeVersion ilCodeVersion;
+    CodeVersionManager *pCodeVersionManager = pModule->GetCodeVersionManager();
 
-    if (pMethodDesc->IsVersionable() && !pMethodDesc->GetModule()->IsEditAndContinueEnabled())
     {
-        
-        CodeVersionManager::SetInitialNativeCodeVersionMayNotBeTheDefaultNativeCodeVersion();
-
-        CodeVersionManager * pCodeVersionManager = pMethodDesc->GetCodeVersionManager();
-        ILCodeVersion ilCodeVersion = pCodeVersionManager->GetActiveILCodeVersion(pMethodDesc);
-        //Build a new NativeCodeVersion
-        hr = ilCodeVersion.AddILCodeVersion(pMethodDesc, NativeCodeVersion::OptimizationTierDebug, &newNativeCodeVersion);
-        if (FAILED(hr))
+        CodeVersionManager::LockHolder codeVersioningLockHolder;
+        if (FAILED(hr = pCodeVersionManager->AddILCodeVersion(pModule, methodDef, &ilCodeVersion)))
         {
+            LOG((LF_TIEREDCOMPILATION, LL_INFO100, "TieredCompilationManager::DeOptimizeMethodHelper Module=0x%x Method=0x%x, AddILCodeVersion returned hr 0x%x\n",
+                pModule, methodDef,
+                hr));
             return hr;
         }
 
-        hr = ilCodeVersion.SetActiveNativeCodeVersion(newNativeCodeVersion);
-    }
-    else
-    {
-        hr = E_FAIL;
+        // We are using the profiler ReJIT infrastructure to trigger a new jit. We don't want to modify the IL or
+        // call back in to anything so set it all here to match the original IL and debug codegen flags
+        ilCodeVersion.SetDebuggerDeoptimized();
+        ilCodeVersion.SetIL(ILCodeVersion(pModule, methodDef).GetIL());
+        ilCodeVersion.SetJitFlags(COR_PRF_CODEGEN_DISABLE_ALL_OPTIMIZATIONS | COR_PRF_CODEGEN_DEBUG_INFO);
+        ilCodeVersion.SetRejitState(ILCodeVersion::kStateActive);
     }
 
-    if (FAILED(hr))
+    CDynArray<CodeVersionManager::CodePublishError> ignored;
+    if (FAILED(hr = pCodeVersionManager->SetActiveILCodeVersions(&ilCodeVersion, 1, &ignored)))
     {
-        LOG((LF_TIEREDCOMPILATION, LL_INFO10000, "TieredCompilationManager::DeOptimizeMethodHelper Method=0x%pM (%s::%s), returned hr 0x%x\n",
-            pMethodDesc, pMethodDesc->m_pszDebugClassName, pMethodDesc->m_pszDebugMethodName,
+        LOG((LF_TIEREDCOMPILATION, LL_INFO100, "TieredCompilationManager::DeOptimizeMethodHelper Module=0x%x Method=0x%x, SetActiveILCodeVersions returned hr 0x%x\n",
+            pModule, methodDef,
             hr));
+        return hr;
     }
+
     return hr;
 }
 
-HRESULT TieredCompilationManager::DeOptimizeMethod(MethodDesc * pMethodDesc)
+HRESULT TieredCompilationManager::DeoptimizeMethod(MethodDesc * pMethodDesc)
 {
     CONTRACTL
     {
@@ -997,12 +999,12 @@ HRESULT TieredCompilationManager::DeOptimizeMethod(MethodDesc * pMethodDesc)
     }
     CONTRACTL_END;
 
-    CodeVersionManager::LockHolder codeVersioningLockHolder;
-
     // First deoptimize the method itself
-    HRESULT hr = DeOptimizeMethodHelper(pMethodDesc);
+    HRESULT hr = DeoptimizeMethodHelper(pMethodDesc->GetModule(), pMethodDesc->GetMemberDef());
     if (FAILED(hr))
     {
+        LOG((LF_TIEREDCOMPILATION, LL_INFO100, "TieredCompilationManager::DeOptimizeMethod pMethodDesc=0x%pM, initial ReJIT returned hr 0x%x, aborting\n",
+            pMethodDesc, hr));
         return hr;
     }
 
@@ -1021,8 +1023,7 @@ HRESULT TieredCompilationManager::DeOptimizeMethod(MethodDesc * pMethodDesc)
             {
                 MethodInModule inliner = inlinerIter.GetMethod();
                 _ASSERTE(TypeFromToken(inliner.m_methodDef) == mdtMethodDef);
-                MethodDesc *pInlinerMD = inliner.m_module->LookupMethodDef(inliner.m_methodDef);
-                DeOptimizeMethodHelper(pInlinerMD);
+                DeoptimizeMethodHelper(inliner.m_module, inliner.m_methodDef);
             }
         }
     }
@@ -1052,8 +1053,8 @@ HRESULT TieredCompilationManager::DeOptimizeMethod(MethodDesc * pMethodDesc)
         {
             Module *inlinerModule = (*it)->GetModule();
             mdMethodDef inlinerMethodDef = (*it)->GetMemberDef();
-            MethodDesc *pInlinerMD = inlinerModule->LookupMethodDef(inlinerMethodDef);
-            DeOptimizeMethodHelper(pInlinerMD);
+            _ASSERTE(TypeFromToken(inlinerMethodDef) == mdtMethodDef);
+            DeoptimizeMethodHelper(inlinerModule, inlinerMethodDef);
         }
     }
 
@@ -1083,7 +1084,7 @@ BOOL TieredCompilationManager::CompileCodeVersion(NativeCodeVersion nativeCodeVe
             nativeCodeVersion.GetVersionId(),
             pCode));
 
-        if (config->JitSwitchedToMinOpt() && nativeCodeVersion.GetOptimizationTier() != NativeCodeVersion::OptimizationTier::OptimizationTierDebug)
+        if (config->JitSwitchedToMinOpt())
         {
             // The JIT decided to switch to min-opts, likely due to the method being very large or complex. The rejitted code
             // may be slower if the method had been prejitted. Ignore the rejitted code and continue using the tier 0 entry
@@ -1123,9 +1124,9 @@ void TieredCompilationManager::ActivateCodeVersion(NativeCodeVersion nativeCodeV
         MethodDescBackpatchInfoTracker::ConditionalLockHolder slotBackpatchLockHolder(mayHaveEntryPointSlotsToBackpatch);
         CodeVersionManager::LockHolder codeVersioningLockHolder;
         
-        NativeCodeVersion activeCodeVersion =
-                pMethod->GetCodeVersionManager()->GetActiveILCodeVersion(pMethod).GetActiveNativeCodeVersion(pMethod);
-        if (!activeCodeVersion.IsNull() && activeCodeVersion.GetOptimizationTier() == NativeCodeVersion::OptimizationTierDebug)
+        ILCodeVersion activeCodeVersion =
+                pMethod->GetCodeVersionManager()->GetActiveILCodeVersion(pMethod);
+        if (!activeCodeVersion.IsNull() && activeCodeVersion.IsDebuggerDeoptimized())
         {
             LOG((LF_TIEREDCOMPILATION, LL_INFO10000, "TieredCompilationManager::ActivateCodeVersion Method=0x%pM (%s::%s), code version id=0x%x. Skipping publishing code because method has been previously deoptimized.\n",
                 pMethod, pMethod->m_pszDebugClassName, pMethod->m_pszDebugMethodName,
@@ -1223,11 +1224,6 @@ CORJIT_FLAGS TieredCompilationManager::GetJitFlags(PrepareCodeConfig *config)
                     flags.Set(CORJIT_FLAGS::CORJIT_FLAG_TIER1);
                     return flags;
                 }
-                if (currentTier == NativeCodeVersion::OptimizationTier::OptimizationTierDebug)
-                {
-                    flags.Set(CORJIT_FLAGS::CORJIT_FLAG_DEBUG_CODE);
-                    flags.Set(CORJIT_FLAGS::CORJIT_FLAG_DEBUG_INFO);
-                }
 
                 _ASSERTE(!nativeCodeVersion.IsFinalTier());
                 flags.Set(CORJIT_FLAGS::CORJIT_FLAG_TIER0);
@@ -1260,11 +1256,6 @@ CORJIT_FLAGS TieredCompilationManager::GetJitFlags(PrepareCodeConfig *config)
 
     switch (nativeCodeVersion.GetOptimizationTier())
     {
-        case NativeCodeVersion::OptimizationTierDebug:
-            flags.Set(CORJIT_FLAGS::CORJIT_FLAG_DEBUG_CODE);
-            flags.Set(CORJIT_FLAGS::CORJIT_FLAG_DEBUG_INFO);
-            break;
-
         case NativeCodeVersion::OptimizationTier0Instrumented:
             _ASSERT(g_pConfig->TieredCompilation_QuickJit());
             flags.Set(CORJIT_FLAGS::CORJIT_FLAG_BBINSTR);

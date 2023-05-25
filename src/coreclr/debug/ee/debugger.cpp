@@ -10451,7 +10451,7 @@ bool Debugger::HandleIPCEvent(DebuggerIPCEvent * pEvent)
             HRESULT hr = E_INVALIDARG;
             if (pMethodDesc != NULL)
             {
-                hr = GetAppDomain()->GetTieredCompilationManager()->DeOptimizeMethod(pMethodDesc);
+                hr = GetAppDomain()->GetTieredCompilationManager()->DeoptimizeMethod(pMethodDesc);
             }
 
             DebuggerIPCEvent * pIPCResult = m_pRCThread->GetIPCEventReceiveBuffer();

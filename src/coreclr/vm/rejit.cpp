@@ -147,11 +147,6 @@
 #include "../debug/ee/controller.h"
 #include "codeversion.h"
 
-// This is just used as a unique id. Overflow is OK. If we happen to have more than 4+Billion rejits
-// and somehow manage to not run out of memory, we'll just have to redefine ReJITID as size_t.
-/* static */
-static ReJITID s_GlobalReJitId = 1;
-
 /* static */
 CrstStatic ReJitManager::s_csGlobalRequest;
 
@@ -168,6 +163,10 @@ CORJIT_FLAGS ReJitManager::JitFlagsFromProfCodegenFlags(DWORD dwCodegenFlags)
     if ((dwCodegenFlags & COR_PRF_CODEGEN_DISABLE_ALL_OPTIMIZATIONS) != 0)
     {
         jitFlags.Set(CORJIT_FLAGS::CORJIT_FLAG_DEBUG_CODE);
+    }
+    if ((dwCodegenFlags & COR_PRF_CODEGEN_DEBUG_INFO) != 0)
+    {
+        jitFlags.Set(CORJIT_FLAGS::CORJIT_FLAG_DEBUG_INFO);
     }
     if ((dwCodegenFlags & COR_PRF_CODEGEN_DISABLE_INLINING) != 0)
     {
@@ -898,7 +897,7 @@ HRESULT ReJitManager::BindILVersion(
     // Either there was no ILCodeVersion yet for this MethodDesc OR whatever we've found
     // couldn't be reused (and needed to be reverted).  Create a new ILCodeVersion to return
     // to the caller.
-    HRESULT hr = pCodeVersionManager->AddILCodeVersion(pModule, methodDef, InterlockedIncrement(reinterpret_cast<LONG*>(&s_GlobalReJitId)), pILCodeVersion);
+    HRESULT hr = pCodeVersionManager->AddILCodeVersion(pModule, methodDef, pILCodeVersion);
     pILCodeVersion->SetEnableReJITCallback(fDoCallback);
     return hr;
 }
