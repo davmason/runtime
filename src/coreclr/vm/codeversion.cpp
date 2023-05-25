@@ -1531,7 +1531,7 @@ HRESULT CodeVersionManager::SetActiveILCodeVersions(ILCodeVersion* pActiveVersio
     CONTRACTL_END;
     _ASSERTE(!IsLockOwnedByCurrentThread());
     HRESULT hr = S_OK;
-
+    
 #if DEBUG
     for (DWORD i = 0; i < cActiveVersions; i++)
     {

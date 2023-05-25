@@ -933,10 +933,14 @@ bool TieredCompilationManager::DoBackgroundWork(
 void TieredCompilationManager::OptimizeMethod(NativeCodeVersion nativeCodeVersion)
 {
     STANDARD_VM_CONTRACT;
-    if (nativeCodeVersion.GetILCodeVersion().IsDebuggerDeoptimized())
+
     {
-        //If it has been changed to Debug, leave it at that optimization level
-        return;
+        CodeVersionManager::LockHolder codeVersioningLockHolder;
+        if (nativeCodeVersion.GetILCodeVersion().IsDebuggerDeoptimized())
+        {
+            //If it has been changed to Debug, leave it at that optimization level
+            return;
+        }
     }
 
     _ASSERTE(nativeCodeVersion.GetMethodDesc()->IsEligibleForTieredCompilation());
@@ -951,6 +955,7 @@ HRESULT TieredCompilationManager::DeoptimizeMethodHelper(Module* pModule, mdMeth
     CONTRACTL
     {
         THROWS;
+        CAN_TAKE_LOCK;
         GC_NOTRIGGER;
     }
     CONTRACTL_END;
@@ -976,21 +981,25 @@ HRESULT TieredCompilationManager::DeoptimizeMethodHelper(Module* pModule, mdMeth
         ilCodeVersion.SetIL(ILCodeVersion(pModule, methodDef).GetIL());
         ilCodeVersion.SetJitFlags(COR_PRF_CODEGEN_DISABLE_ALL_OPTIMIZATIONS | COR_PRF_CODEGEN_DEBUG_INFO);
         ilCodeVersion.SetRejitState(ILCodeVersion::kStateActive);
+        ilCodeVersion.SetEnableReJITCallback(false);
     }
 
-    CDynArray<CodeVersionManager::CodePublishError> ignored;
-    if (FAILED(hr = pCodeVersionManager->SetActiveILCodeVersions(&ilCodeVersion, 1, &ignored)))
+    _ASSERTE(!ilCodeVersion.IsNull());
     {
-        LOG((LF_TIEREDCOMPILATION, LL_INFO100, "TieredCompilationManager::DeOptimizeMethodHelper Module=0x%x Method=0x%x, SetActiveILCodeVersions returned hr 0x%x\n",
-            pModule, methodDef,
-            hr));
-        return hr;
+        SystemDomain::LockHolder lh;
+        if (FAILED(hr = pCodeVersionManager->SetActiveILCodeVersions(&ilCodeVersion, 1, NULL)))
+        {
+            LOG((LF_TIEREDCOMPILATION, LL_INFO100, "TieredCompilationManager::DeOptimizeMethodHelper Module=0x%x Method=0x%x, SetActiveILCodeVersions returned hr 0x%x\n",
+                pModule, methodDef,
+                hr));
+            return hr;
+        }
     }
 
     return hr;
 }
 
-HRESULT TieredCompilationManager::DeoptimizeMethod(MethodDesc * pMethodDesc)
+HRESULT TieredCompilationManager::DeoptimizeMethod(Module* pModule, mdMethodDef methodDef)
 {
     CONTRACTL
     {
@@ -1000,11 +1009,11 @@ HRESULT TieredCompilationManager::DeoptimizeMethod(MethodDesc * pMethodDesc)
     CONTRACTL_END;
 
     // First deoptimize the method itself
-    HRESULT hr = DeoptimizeMethodHelper(pMethodDesc->GetModule(), pMethodDesc->GetMemberDef());
+    HRESULT hr = DeoptimizeMethodHelper(pModule, methodDef);
     if (FAILED(hr))
     {
-        LOG((LF_TIEREDCOMPILATION, LL_INFO100, "TieredCompilationManager::DeOptimizeMethod pMethodDesc=0x%pM, initial ReJIT returned hr 0x%x, aborting\n",
-            pMethodDesc, hr));
+        LOG((LF_TIEREDCOMPILATION, LL_INFO100, "TieredCompilationManager::DeOptimizeMethod Module=0x%x Method=0x%x,, initial ReJIT returned hr 0x%x, aborting\n",
+            pModule, methodDef, hr));
         return hr;
     }
 
@@ -1014,10 +1023,10 @@ HRESULT TieredCompilationManager::DeoptimizeMethod(MethodDesc * pMethodDesc)
     NativeImageInliningIterator inlinerIter;
     while (domainAssemblyIterator.Next(pDomainAssembly.This()))
     {
-        Module * pModule = pDomainAssembly->GetModule();
-        if (pModule->HasReadyToRunInlineTrackingMap())
+        Module *pCandidateModule = pDomainAssembly->GetModule();
+        if (pCandidateModule->HasReadyToRunInlineTrackingMap())
         {
-            inlinerIter.Reset(pModule, MethodInModule(pMethodDesc->GetModule(), pMethodDesc->GetMemberDef()));
+            inlinerIter.Reset(pCandidateModule, MethodInModule(pModule, methodDef));
 
             while (inlinerIter.Next())
             {
@@ -1029,8 +1038,8 @@ HRESULT TieredCompilationManager::DeoptimizeMethod(MethodDesc * pMethodDesc)
     }
 
     // Next any JIT methods
-    Module *pModule = pMethodDesc->GetModule();
-    if (pModule->HasJitInlineTrackingMap())
+    MethodDesc *pMethodDesc = pModule->LookupMethodDef(methodDef);
+    if (pMethodDesc != NULL && pModule->HasJitInlineTrackingMap())
     {
         InlineSArray<MethodDesc *, 10> inliners;
         auto lambda = [&](MethodDesc *inliner, MethodDesc *inlinee)

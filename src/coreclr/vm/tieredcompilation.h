@@ -81,7 +81,7 @@ private:
     BOOL CompileCodeVersion(NativeCodeVersion nativeCodeVersion);
     void ActivateCodeVersion(NativeCodeVersion nativeCodeVersion);
 public:
-    HRESULT DeoptimizeMethod(MethodDesc * pMethodDesc);
+    HRESULT DeoptimizeMethod(Module* pModule, mdMethodDef methodDef);
 
 #ifndef DACCESS_COMPILE
 public:

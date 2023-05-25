@@ -10446,14 +10446,14 @@ bool Debugger::HandleIPCEvent(DebuggerIPCEvent * pEvent)
             Module *pModule = pEvent->DisableOptData.pModule.GetRawPtr();
             mdToken methodDef = pEvent->DisableOptData.funcMetadataToken;
             _ASSERTE(TypeFromToken(methodDef) == mdtMethodDef);
-            MethodDesc *pMethodDesc = pModule->LookupMethodDef(methodDef);
 
             HRESULT hr = E_INVALIDARG;
-            if (pMethodDesc != NULL)
+            EX_TRY
             {
-                hr = GetAppDomain()->GetTieredCompilationManager()->DeoptimizeMethod(pMethodDesc);
+                hr = GetAppDomain()->GetTieredCompilationManager()->DeoptimizeMethod(pModule, methodDef);
             }
-
+            EX_CATCH_HRESULT(hr);
+            
             DebuggerIPCEvent * pIPCResult = m_pRCThread->GetIPCEventReceiveBuffer();
 
             InitIPCEvent(pIPCResult,
