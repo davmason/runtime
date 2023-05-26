@@ -986,7 +986,7 @@ HRESULT TieredCompilationManager::DeoptimizeMethodHelper(Module* pModule, mdMeth
 
     _ASSERTE(!ilCodeVersion.IsNull());
     {
-        SystemDomain::LockHolder lh;
+        // SystemDomain::LockHolder lh; // TODO: Delete, already holding?
         if (FAILED(hr = pCodeVersionManager->SetActiveILCodeVersions(&ilCodeVersion, 1, NULL)))
         {
             LOG((LF_TIEREDCOMPILATION, LL_INFO100, "TieredCompilationManager::DeOptimizeMethodHelper Module=0x%x Method=0x%x, SetActiveILCodeVersions returned hr 0x%x\n",

@@ -435,7 +435,7 @@ public:
     static void StaticInitialize()
     {
         WRAPPER_NO_CONTRACT;
-        s_mapCrst.Init(CrstJitInlineTrackingMap);
+        s_mapCrst.Init(CrstJitInlineTrackingMap, CrstFlags(CRST_DEBUGGER_THREAD));
     }
 
     static CrstBase *GetMapCrst() { return &s_mapCrst; }
