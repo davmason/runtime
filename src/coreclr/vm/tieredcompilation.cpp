@@ -1070,6 +1070,31 @@ HRESULT TieredCompilationManager::DeoptimizeMethod(Module* pModule, mdMethodDef 
     return hr;
 }
 
+HRESULT TieredCompilationManager::IsMethodDeoptimized(Module *pModule, mdMethodDef methodDef, BOOL *pResult)
+{
+    CONTRACTL
+    {
+        NOTHROW;
+        CAN_TAKE_LOCK;
+        GC_NOTRIGGER;
+    }
+    CONTRACTL_END;
+
+    if (pModule == NULL || pResult == NULL || TypeFromToken(methodDef) != mdtMethodDef)
+    {
+        return E_INVALIDARG;
+    }
+
+    {
+        CodeVersionManager::LockHolder codeVersioningLockHolder;
+        CodeVersionManager *pCodeVersionManager = pModule->GetCodeVersionManager();
+        ILCodeVersion activeILVersion = pCodeVersionManager->GetActiveILCodeVersion(pModule, methodDef);
+        *pResult = activeILVersion.IsDebuggerDeoptimized(); 
+    }
+
+    return S_OK;
+}
+
 // Compiles new optimized code for a method.
 // Called on a background thread.
 BOOL TieredCompilationManager::CompileCodeVersion(NativeCodeVersion nativeCodeVersion)

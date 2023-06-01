@@ -10441,7 +10441,8 @@ bool Debugger::HandleIPCEvent(DebuggerIPCEvent * pEvent)
             GetCanary()->ClearCache();
             break;
         }
-    case DB_IPCE_DISABLE_OPS:
+
+    case DB_IPCE_DISABLE_OPTS:
         {
             Module *pModule = pEvent->DisableOptData.pModule.GetRawPtr();
             mdToken methodDef = pEvent->DisableOptData.funcMetadataToken;
@@ -10457,10 +10458,38 @@ bool Debugger::HandleIPCEvent(DebuggerIPCEvent * pEvent)
             DebuggerIPCEvent * pIPCResult = m_pRCThread->GetIPCEventReceiveBuffer();
 
             InitIPCEvent(pIPCResult,
-                         DB_IPCE_DISABLE_OPS_RESULT,
+                         DB_IPCE_DISABLE_OPTS_RESULT,
                          g_pEEInterface->GetThread(),
                          pEvent->vmAppDomain);
 
+            pIPCResult->hr = hr;
+
+            m_pRCThread->SendIPCReply();
+        }
+        break;
+
+    case DB_IPCE_IS_OPTS_DISABLED:
+        {
+            Module *pModule = pEvent->DisableOptData.pModule.GetRawPtr();
+            mdToken methodDef = pEvent->DisableOptData.funcMetadataToken;
+            _ASSERTE(TypeFromToken(methodDef) == mdtMethodDef);
+
+            HRESULT hr = E_INVALIDARG;
+            BOOL deoptimized = FALSE; 
+            EX_TRY
+            {
+                hr = GetAppDomain()->GetTieredCompilationManager()->IsMethodDeoptimized(pModule, methodDef, &deoptimized);
+            }
+            EX_CATCH_HRESULT(hr);
+            
+            DebuggerIPCEvent * pIPCResult = m_pRCThread->GetIPCEventReceiveBuffer();
+
+            InitIPCEvent(pIPCResult,
+                         DB_IPCE_IS_OPTS_DISABLED_RESULT,
+                         g_pEEInterface->GetThread(),
+                         pEvent->vmAppDomain);
+
+            pIPCResult->IsOptsDisabledData.value = deoptimized;
             pIPCResult->hr = hr;
 
             m_pRCThread->SendIPCReply();
