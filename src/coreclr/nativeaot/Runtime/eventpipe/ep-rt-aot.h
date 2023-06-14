@@ -99,6 +99,15 @@ ep_rt_runtime_version_get_utf8 (void)
     return reinterpret_cast<const ep_char8_t*>(STRINGIFY(RuntimeProductVersion));
 }
 
+static
+const ep_char8_t *
+ep_rt_runtime_rid_get_utf8 (void)
+{
+    STATIC_CONTRACT_NOTHROW;
+
+    return NULL;
+}
+
 /*
  * Little-Endian Conversion.
  */

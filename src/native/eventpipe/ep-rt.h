@@ -406,6 +406,10 @@ static
 const ep_char8_t *
 ep_rt_runtime_version_get_utf8 (void);
 
+static
+const ep_char8_t *
+ep_rt_runtime_rid_get_utf8 (void);
+
 /*
 * Lock
 */
