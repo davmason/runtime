@@ -24,6 +24,8 @@ namespace System.Diagnostics.Tracing
 
         internal static readonly EventPipeEventDispatcher Instance = new EventPipeEventDispatcher();
 
+        private const ulong InvalidSessionID = ulong.MaxValue;
+
         private readonly IntPtr m_RuntimeProviderID;
 
         private ulong m_sessionID;
@@ -31,7 +33,7 @@ namespace System.Diagnostics.Tracing
         private long m_syncTimeQPC;
         private long m_timeQPCFrequency;
 
-        private bool m_stopDispatchTask;
+        private ManualResetEvent m_dispatchStartedEvent = new ManualResetEvent(false);
         private Task? m_dispatchTask;
         private readonly object m_dispatchControlLock = new object();
         private readonly Dictionary<EventListener, EventListenerSubscription> m_subscriptions = new Dictionary<EventListener, EventListenerSubscription>();
@@ -42,6 +44,7 @@ namespace System.Diagnostics.Tracing
         {
             // Get the ID of the runtime provider so that it can be used as a filter when processing events.
             m_RuntimeProviderID = EventPipeInternal.GetProvider(NativeRuntimeEventSource.EventSourceName);
+            m_sessionID = InvalidSessionID;
         }
 
         internal void SendCommand(EventListener eventListener, EventCommand command, bool enable, EventLevel level, EventKeywords matchAnyKeywords)
@@ -82,13 +85,14 @@ namespace System.Diagnostics.Tracing
         {
             Debug.Assert(Monitor.IsEntered(m_dispatchControlLock));
 
+            ulong currentSessionID = Volatile.Read(ref m_sessionID);
             // Ensure that the dispatch task is stopped.
             // This is a no-op if the task is already stopped.
             StopDispatchTask();
 
             // Stop tracing.
             // This is a no-op if it's already disabled.
-            EventPipeInternal.Disable(m_sessionID);
+            EventPipeInternal.Disable(currentSessionID);
 
             // Check to see if tracing should be enabled.
             if (m_subscriptions.Count <= 0)
@@ -121,14 +125,15 @@ namespace System.Diagnostics.Tracing
                 new EventPipeProviderConfiguration(NativeRuntimeEventSource.EventSourceName, (ulong)aggregatedKeywords, (uint)enableLevel, null)
             };
 
-            m_sessionID = EventPipeInternal.Enable(null, EventPipeSerializationFormat.NetTrace, DefaultEventListenerCircularMBSize, providerConfiguration);
-            Debug.Assert(m_sessionID != 0);
+            ulong newSessionID = EventPipeInternal.Enable(null, EventPipeSerializationFormat.NetTrace, DefaultEventListenerCircularMBSize, providerConfiguration);
+            Debug.Assert(newSessionID != 0);
+            Volatile.Write(ref m_sessionID, newSessionID);
 
             // Get the session information that is required to properly dispatch events.
             EventPipeSessionInfo sessionInfo;
             unsafe
             {
-                if (!EventPipeInternal.GetSessionInfo(m_sessionID, &sessionInfo))
+                if (!EventPipeInternal.GetSessionInfo(newSessionID, &sessionInfo))
                 {
                     Debug.Fail("GetSessionInfo returned false.");
                 }
@@ -146,11 +151,8 @@ namespace System.Diagnostics.Tracing
         {
             Debug.Assert(Monitor.IsEntered(m_dispatchControlLock));
 
-            if (m_dispatchTask == null)
-            {
-                m_stopDispatchTask = false;
-                m_dispatchTask = Task.Factory.StartNew(DispatchEventsToEventListeners, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
-            }
+            m_dispatchTask ??= Task.Factory.StartNew(DispatchEventsToEventListeners, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+            m_dispatchStartedEvent.Set();
         }
 
         private void StopDispatchTask()
@@ -159,10 +161,10 @@ namespace System.Diagnostics.Tracing
 
             if (m_dispatchTask != null)
             {
-                m_stopDispatchTask = true;
-                EventPipeInternal.SignalSession(m_sessionID);
-                m_dispatchTask.Wait();
-                m_dispatchTask = null;
+                m_dispatchStartedEvent.Reset();
+                ulong currentSessionID = Volatile.Read(ref m_sessionID);
+                Volatile.Write(ref m_sessionID, InvalidSessionID);
+                EventPipeInternal.SignalSession(currentSessionID);
             }
         }
 
@@ -171,11 +173,17 @@ namespace System.Diagnostics.Tracing
             // Struct to fill with the call to GetNextEvent.
             EventPipeEventInstanceData instanceData;
 
-            while (!m_stopDispatchTask)
+            while (true)
             {
+                ulong currentSessionID;
+                while ((currentSessionID = Volatile.Read(ref m_sessionID)) == InvalidSessionID)
+                {
+                    m_dispatchStartedEvent.WaitOne();
+                }
+
                 bool eventsReceived = false;
                 // Get the next event.
-                while (!m_stopDispatchTask && EventPipeInternal.GetNextEvent(m_sessionID, &instanceData))
+                while (EventPipeInternal.GetNextEvent(currentSessionID, &instanceData))
                 {
                     eventsReceived = true;
 
@@ -189,16 +197,12 @@ namespace System.Diagnostics.Tracing
                     }
                 }
 
-                // Wait for more events.
-                if (!m_stopDispatchTask)
+                if (!eventsReceived)
                 {
-                    if (!eventsReceived)
-                    {
-                        EventPipeInternal.WaitForSessionSignal(m_sessionID, Timeout.Infinite);
-                    }
-
-                    Thread.Sleep(10);
+                    EventPipeInternal.WaitForSessionSignal(currentSessionID, Timeout.Infinite);
                 }
+
+                Thread.Sleep(10);
             }
         }
 
