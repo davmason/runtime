@@ -148,6 +148,12 @@ ep_enable_2 (
 void
 ep_disable (EventPipeSessionID id);
 
+void
+ep_update (
+	EventPipeSessionID id,
+	const EventPipeProviderConfiguration *providers_config,
+	uint32_t providers_len);
+
 EventPipeSession *
 ep_get_session (EventPipeSessionID session_id);
 

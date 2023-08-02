@@ -105,6 +105,14 @@ EXTERN_C NATIVEAOT_API void __cdecl RhEventPipeInternal_Disable(uint64_t session
     EventPipeAdapter::Disable(sessionID);
 }
 
+EXTERN_C NATIVEAOT_API void __cdecl RhEventPipeInternal_Update(
+            uint64_t sessionID,
+            void* providers,
+            uint32_t numProviders)
+{
+    // TODO
+}
+
 EXTERN_C NATIVEAOT_API intptr_t __cdecl RhEventPipeInternal_CreateProvider(
     LPCWSTR providerName,
     EventPipeCallback pCallbackFunc,

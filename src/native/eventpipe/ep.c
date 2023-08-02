@@ -1146,6 +1146,30 @@ ep_on_error:
 	ep_exit_error_handler ();
 }
 
+void
+ep_update (
+	EventPipeSessionID id,
+	const EventPipeProviderConfiguration *providers_config,
+	uint32_t providers_len)
+{
+	ep_requires_lock_not_held ();
+
+	ep_return_void_if_nok (providers_config != NULL);
+	ep_return_void_if_nok (providers_len > 0);
+
+	EventPipeProviderCallbackDataQueue callback_data_queue;
+	EventPipeProviderCallbackData provider_callback_data;
+	EventPipeProviderCallbackDataQueue *provider_callback_data_queue = ep_provider_callback_data_queue_init (&callback_data_queue);
+
+	ep_config_update(ep_config_get (), id, providers_config, providers_len, provider_callback_data_queue);
+
+	while (ep_provider_callback_data_queue_try_dequeue (provider_callback_data_queue, &provider_callback_data)) {
+		ep_rt_prepare_provider_invoke_callback (&provider_callback_data);
+		provider_invoke_callback (&provider_callback_data);
+		ep_provider_callback_data_fini (&provider_callback_data);
+	}
+}
+
 EventPipeSession *
 ep_get_session (EventPipeSessionID session_id)
 {

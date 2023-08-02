@@ -51,6 +51,11 @@ extern "C" UINT64 QCALLTYPE EventPipeInternal_Enable(
 //!
 extern "C" void QCALLTYPE EventPipeInternal_Disable(UINT64 sessionID);
 
+extern "C" void QCALLTYPE EventPipeInternal_Update(
+    UINT64 sessionID,
+    /* COR_PRF_EVENTPIPE_PROVIDER_CONFIG */ LPCVOID pProviders,
+    UINT32 numProviders);
+
 extern "C" BOOL QCALLTYPE EventPipeInternal_GetSessionInfo(UINT64 sessionID, EventPipeSessionInfo *pSessionInfo);
 
 extern "C" INT_PTR QCALLTYPE EventPipeInternal_CreateProvider(

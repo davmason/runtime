@@ -242,6 +242,21 @@ public:
 		ep_disable(id);
 	}
 
+	static inline void Update(
+		EventPipeSessionID id,
+		const EventPipeProviderConfigurationAdapter &providerConfigs)
+	{
+		CONTRACTL
+		{
+			NOTHROW;
+			GC_TRIGGERS;
+			MODE_ANY;
+		}
+		CONTRACTL_END;
+
+		ep_update(id, providerConfigs.GetProviderConfigs(), providerConfigs.GetProviderConfigsLen());
+	}
+
 	static inline void StartStreaming(EventPipeSessionID id)
 	{
 		CONTRACTL

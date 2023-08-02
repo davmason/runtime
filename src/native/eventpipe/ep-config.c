@@ -368,6 +368,65 @@ ep_on_error:
 	ep_exit_error_handler ();
 }
 
+void
+ep_config_update (
+	EventPipeConfiguration *config,
+	EventPipeSessionID id,
+	const EventPipeProviderConfiguration *providers_config,
+	uint32_t providers_len,
+	EventPipeProviderCallbackDataQueue *provider_callback_data_queue)
+{
+	EP_ASSERT (config != NULL);
+	EP_ASSERT (id != 0);
+
+	ep_requires_lock_not_held ();
+
+	EP_LOCK_ENTER (section1)
+		if (is_session_id_in_collection (id)) {
+			EventPipeSession *const session = (EventPipeSession *)(uintptr_t)id;
+			EventPipeSessionProviderList *providers = ep_session_get_providers (session);
+			EP_ASSERT (providers != NULL);
+
+			for (uint32_t i = 0; i < providers_len; ++i) {
+				const ep_char8_t *provider_name = ep_provider_config_get_provider_name (&providers_config[i]);
+				EventPipeSessionProvider *session_provider = ep_session_provider_list_find_by_name (ep_session_provider_list_get_providers (providers), provider_name);
+				if (session_provider) {
+					ep_session_provider_set_logging_level (session_provider, ep_provider_config_get_logging_level (&providers_config[i]));
+					ep_session_provider_set_keywords (session_provider, ep_provider_config_get_keywords (&providers_config[i]));
+
+					EventPipeProvider *provider =  config_get_provider (ep_config_get (), provider_name);
+					EP_ASSERT(provider != NULL);
+					if (provider) {
+						int64_t keyword_for_all_sessions;
+						EventPipeEventLevel level_for_all_sessions;
+						config_compute_keyword_and_level (ep_config_get(), provider, &keyword_for_all_sessions, &level_for_all_sessions);
+
+						EventPipeProviderCallbackData provider_callback_data;
+						memset (&provider_callback_data, 0, sizeof (provider_callback_data));
+						provider_set_config (
+							provider,
+							keyword_for_all_sessions,
+							level_for_all_sessions,
+							ep_session_get_mask (session),
+							ep_session_provider_get_keywords (session_provider),
+							ep_session_provider_get_logging_level (session_provider),
+							ep_session_provider_get_filter_data (session_provider),
+							&provider_callback_data,
+							(EventPipeSessionID)session);
+					}
+				}
+			}
+		}
+	EP_LOCK_EXIT(section1)
+
+ep_on_exit:
+	ep_requires_lock_not_held ();
+	return;
+
+ep_on_error:
+	ep_exit_error_handler ();
+}
+
 EventPipeEventMetadataEvent *
 ep_config_build_event_metadata_event (
 	EventPipeConfiguration *config,

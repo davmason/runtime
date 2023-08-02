@@ -76,6 +76,14 @@ ep_config_disable (
 	const EventPipeSession *session,
 	EventPipeProviderCallbackDataQueue *provider_callback_data_queue);
 
+void
+ep_config_update (
+	EventPipeConfiguration *config,
+	EventPipeSessionID id,
+	const EventPipeProviderConfiguration *providers_config,
+	uint32_t providers_len,
+	EventPipeProviderCallbackDataQueue *provider_callback_data_queue);
+
 EventPipeEventMetadataEvent *
 ep_config_build_event_metadata_event (
 	EventPipeConfiguration *config,

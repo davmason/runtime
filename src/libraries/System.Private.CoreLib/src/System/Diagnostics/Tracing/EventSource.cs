@@ -4393,8 +4393,8 @@ namespace System.Diagnostics.Tracing
             }
 
 #if FEATURE_PERFTRACING
-            // Remove the listener from the EventPipe dispatcher.
-            EventPipeEventDispatcher.Instance.RemoveEventListener(listenerToRemove);
+            // Remove the listener from the EventPipe dispatcher. EventCommand.Update with enable==false removes it
+            EventPipeEventDispatcher.Instance.SendCommand(listenerToRemove, EventCommand.Update, false, EventLevel.LogAlways, (EventKeywords)0);
 #endif // FEATURE_PERFTRACING
         }
 

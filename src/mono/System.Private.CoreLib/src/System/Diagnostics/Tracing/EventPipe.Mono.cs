@@ -17,6 +17,12 @@ namespace System.Diagnostics.Tracing
         [MethodImplAttribute(MethodImplOptions.InternalCall)]
         internal static extern void Disable(ulong sessionID);
 
+        [MethodImplAttribute(MethodImplOptions.InternalCall)]
+        private static extern unsafe void Update(
+            ulong sessionID,
+            EventPipeProviderConfigurationNative* providers,
+            uint numProviders);
+
         //
         // These ICalls are used by EventSource to interact with the EventPipe.
         //

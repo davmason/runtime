@@ -49,6 +49,14 @@ namespace System.Diagnostics.Tracing
             RuntimeImports.RhEventPipeInternal_Disable(sessionID);
         }
 
+        private static unsafe void Update(
+            ulong sessionID,
+            EventPipeProviderConfigurationNative* providers,
+            uint numProviders)
+        {
+            RuntimeImports.RhEventPipeInternal_Update(sessionID, providers, numProviders);
+        }
+
         //
         // These PInvokes are used by EventSource to interact with the EventPipe.
         //

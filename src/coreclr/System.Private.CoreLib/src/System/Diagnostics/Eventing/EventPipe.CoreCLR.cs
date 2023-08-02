@@ -25,6 +25,12 @@ namespace System.Diagnostics.Tracing
         [LibraryImport(RuntimeHelpers.QCall, EntryPoint = "EventPipeInternal_Disable")]
         internal static partial void Disable(ulong sessionID);
 
+        [LibraryImport(RuntimeHelpers.QCall, EntryPoint = "EventPipeInternal_Update")]
+        private static unsafe partial void Update(
+            ulong sessionID,
+            EventPipeProviderConfigurationNative* providers,
+            uint numProviders);
+
         //
         // These PInvokes are used by EventSource to interact with the EventPipe.
         //

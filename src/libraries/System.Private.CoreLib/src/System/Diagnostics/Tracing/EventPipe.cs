@@ -4,6 +4,7 @@
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Threading;
+using static System.Reflection.Emit.TypeNameBuilder;
 
 #if FEATURE_PERFTRACING
 
@@ -133,6 +134,37 @@ namespace System.Diagnostics.Tracing
                 fixed (EventPipeProviderConfigurationNative* providersNativePointer = providersNative)
                 {
                     return Enable(outputFilePath, format, circularBufferSizeInMB, providersNativePointer, (uint)providersNative.Length);
+                }
+            }
+            finally
+            {
+                for (int i = 0; i < providers.Length; i++)
+                {
+                    providersNative[i].Release();
+                }
+
+                fixed (EventPipeProviderConfigurationNative* providersNativePointer = providersNative)
+                {
+                    Marshal.FreeCoTaskMem((IntPtr)providersNativePointer);
+                }
+            }
+        }
+
+        internal static unsafe void Update(ulong sessionID, EventPipeProviderConfiguration[] providers)
+        {
+            Span<EventPipeProviderConfigurationNative> providersNative = new Span<EventPipeProviderConfigurationNative>((void*)Marshal.AllocCoTaskMem(sizeof(EventPipeProviderConfigurationNative) * providers.Length), providers.Length);
+            providersNative.Clear();
+
+            try
+            {
+                for (int i = 0; i < providers.Length; i++)
+                {
+                    EventPipeProviderConfigurationNative.MarshalToNative(providers[i], ref providersNative[i]);
+                }
+
+                fixed (EventPipeProviderConfigurationNative* providersNativePointer = providersNative)
+                {
+                    Update(sessionID, providersNativePointer, (uint)providersNative.Length);
                 }
             }
             finally

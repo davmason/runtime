@@ -60,6 +60,29 @@ extern "C" void QCALLTYPE EventPipeInternal_Disable(UINT64 sessionID)
     END_QCALL;
 }
 
+extern "C" void QCALLTYPE EventPipeInternal_Update(
+    UINT64 sessionID,
+    /* COR_PRF_EVENTPIPE_PROVIDER_CONFIG */ LPCVOID pProviders,
+    UINT32 numProviders)
+{
+    QCALL_CONTRACT;
+
+    if (pProviders == nullptr ||
+        numProviders == 0 ||
+        sessionID == 0)
+    {
+        return;
+    }
+
+
+    BEGIN_QCALL;
+    {
+        EventPipeProviderConfigurationAdapter configAdapter(reinterpret_cast<const COR_PRF_EVENTPIPE_PROVIDER_CONFIG *>(pProviders), numProviders);
+        EventPipeAdapter::Update(sessionID, configAdapter);
+    }
+    END_QCALL;
+}
+
 extern "C" BOOL QCALLTYPE EventPipeInternal_GetSessionInfo(UINT64 sessionID, EventPipeSessionInfo *pSessionInfo)
 {
     QCALL_CONTRACT;

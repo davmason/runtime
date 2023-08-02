@@ -34,7 +34,9 @@ struct _EventPipeSessionProvider {
 
 EP_DEFINE_GETTER(EventPipeSessionProvider *, session_provider, const ep_char8_t *, provider_name)
 EP_DEFINE_GETTER(EventPipeSessionProvider *, session_provider, uint64_t, keywords)
+EP_DEFINE_SETTER(EventPipeSessionProvider *, session_provider, uint64_t, keywords)
 EP_DEFINE_GETTER(EventPipeSessionProvider *, session_provider, EventPipeEventLevel, logging_level)
+EP_DEFINE_SETTER(EventPipeSessionProvider *, session_provider, EventPipeEventLevel, logging_level)
 EP_DEFINE_GETTER(EventPipeSessionProvider *, session_provider, const ep_char8_t *, filter_data)
 
 EventPipeSessionProvider *

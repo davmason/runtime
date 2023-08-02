@@ -33,6 +33,7 @@ namespace System.Diagnostics.Tracing
 
         private bool m_stopDispatchTask;
         private Task? m_dispatchTask;
+        private ManualResetEvent m_stoppedEvent = new ManualResetEvent(true);
         private readonly object m_dispatchControlLock = new object();
         private readonly Dictionary<EventListener, EventListenerSubscription> m_subscriptions = new Dictionary<EventListener, EventListenerSubscription>();
 
@@ -46,35 +47,38 @@ namespace System.Diagnostics.Tracing
 
         internal void SendCommand(EventListener eventListener, EventCommand command, bool enable, EventLevel level, EventKeywords matchAnyKeywords)
         {
-            lock (EventListener.EventListenersLock)
+            while (true)
             {
-                if (command == EventCommand.Update && enable)
+                if (m_stopDispatchTask)
                 {
-                    lock (m_dispatchControlLock)
+                    m_stoppedEvent.WaitOne();
+                }
+
+                lock (m_dispatchControlLock)
+                {
+                    if (m_stopDispatchTask)
+                    {
+                        // We happened to end up here after the task was marked as stopping, give up the lock and try again later
+                        continue;
+                    }
+
+                    if (command == EventCommand.Update && enable)
                     {
                         // Add the new subscription.  This will overwrite an existing subscription for the listener if one exists.
                         m_subscriptions[eventListener] = new EventListenerSubscription(matchAnyKeywords, level);
-
-                        // Commit the configuration change.
-                        CommitDispatchConfiguration();
                     }
-                }
-                else if (command == EventCommand.Update && !enable)
-                {
-                    RemoveEventListener(eventListener);
-                }
-            }
-        }
+                    else if (command == EventCommand.Update && !enable)
+                    {
+                        // Remove the event listener from the list of subscribers.
+                        m_subscriptions.Remove(eventListener);
+                    }
 
-        internal void RemoveEventListener(EventListener listener)
-        {
-            lock (m_dispatchControlLock)
-            {
-                // Remove the event listener from the list of subscribers.
-                m_subscriptions.Remove(listener);
+                    // Commit the configuration change.
+                    CommitDispatchConfiguration();
 
-                // Commit the configuration change.
-                CommitDispatchConfiguration();
+                    // We were successful, break out of the loop
+                    break;
+                }
             }
         }
 
@@ -82,17 +86,11 @@ namespace System.Diagnostics.Tracing
         {
             Debug.Assert(Monitor.IsEntered(m_dispatchControlLock));
 
-            // Ensure that the dispatch task is stopped.
-            // This is a no-op if the task is already stopped.
-            StopDispatchTask();
-
-            // Stop tracing.
-            // This is a no-op if it's already disabled.
-            EventPipeInternal.Disable(m_sessionID);
-
             // Check to see if tracing should be enabled.
             if (m_subscriptions.Count <= 0)
             {
+                // Signal that the thread should shut down
+                SetStopDispatchTask();
                 return;
             }
 
@@ -121,48 +119,52 @@ namespace System.Diagnostics.Tracing
                 new EventPipeProviderConfiguration(NativeRuntimeEventSource.EventSourceName, (ulong)aggregatedKeywords, (uint)enableLevel, null)
             };
 
-            m_sessionID = EventPipeInternal.Enable(null, EventPipeSerializationFormat.NetTrace, DefaultEventListenerCircularMBSize, providerConfiguration);
-            Debug.Assert(m_sessionID != 0);
-
-            // Get the session information that is required to properly dispatch events.
-            EventPipeSessionInfo sessionInfo;
-            unsafe
+            if (m_sessionID == 0)
             {
-                if (!EventPipeInternal.GetSessionInfo(m_sessionID, &sessionInfo))
+                m_sessionID = EventPipeInternal.Enable(null, EventPipeSerializationFormat.NetTrace, DefaultEventListenerCircularMBSize, providerConfiguration);
+                Debug.Assert(m_sessionID != 0);
+
+                // Get the session information that is required to properly dispatch events.
+                EventPipeSessionInfo sessionInfo;
+                unsafe
                 {
-                    Debug.Fail("GetSessionInfo returned false.");
+                    if (!EventPipeInternal.GetSessionInfo(m_sessionID, &sessionInfo))
+                    {
+                        Debug.Fail("GetSessionInfo returned false.");
+                    }
                 }
+
+                m_syncTimeUtc = DateTime.FromFileTimeUtc(sessionInfo.StartTimeAsUTCFileTime);
+                m_syncTimeQPC = sessionInfo.StartTimeStamp;
+                m_timeQPCFrequency = sessionInfo.TimeStampFrequency;
+
+                // Start the dispatch task.
+                StartDispatchTask();
             }
-
-            m_syncTimeUtc = DateTime.FromFileTimeUtc(sessionInfo.StartTimeAsUTCFileTime);
-            m_syncTimeQPC = sessionInfo.StartTimeStamp;
-            m_timeQPCFrequency = sessionInfo.TimeStampFrequency;
-
-            // Start the dispatch task.
-            StartDispatchTask();
+            else
+            {
+                EventPipeInternal.Update(m_sessionID, providerConfiguration);
+            }
         }
 
         private void StartDispatchTask()
         {
             Debug.Assert(Monitor.IsEntered(m_dispatchControlLock));
+            Debug.Assert(m_dispatchTask == null);
 
-            if (m_dispatchTask == null)
-            {
-                m_stopDispatchTask = false;
-                m_dispatchTask = Task.Factory.StartNew(DispatchEventsToEventListeners, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
-            }
+            m_stopDispatchTask = false;
+            m_dispatchTask = Task.Factory.StartNew(DispatchEventsToEventListeners, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
         }
 
-        private void StopDispatchTask()
+        private void SetStopDispatchTask()
         {
             Debug.Assert(Monitor.IsEntered(m_dispatchControlLock));
 
             if (m_dispatchTask != null)
             {
+                m_stoppedEvent.Reset();
                 m_stopDispatchTask = true;
                 EventPipeInternal.SignalSession(m_sessionID);
-                m_dispatchTask.Wait();
-                m_dispatchTask = null;
             }
         }
 
@@ -200,6 +202,12 @@ namespace System.Diagnostics.Tracing
                     Thread.Sleep(10);
                 }
             }
+
+            // Disable ourselves and set m_dispatchTask to null to signal that we are done
+            EventPipeInternal.Disable(m_sessionID);
+            m_dispatchTask = null;
+            // Signal to threads that they can stop waiting since we are done
+            m_stoppedEvent.Set();
         }
 
         /// <summary>
