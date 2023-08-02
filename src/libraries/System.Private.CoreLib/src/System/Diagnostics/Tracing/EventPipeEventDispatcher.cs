@@ -119,7 +119,7 @@ namespace System.Diagnostics.Tracing
                 new EventPipeProviderConfiguration(NativeRuntimeEventSource.EventSourceName, (ulong)aggregatedKeywords, (uint)enableLevel, null)
             };
 
-            if (m_sessionID == 0)
+            if (m_dispatchTask == null)
             {
                 m_sessionID = EventPipeInternal.Enable(null, EventPipeSerializationFormat.NetTrace, DefaultEventListenerCircularMBSize, providerConfiguration);
                 Debug.Assert(m_sessionID != 0);
@@ -205,6 +205,7 @@ namespace System.Diagnostics.Tracing
 
             // Disable ourselves and set m_dispatchTask to null to signal that we are done
             EventPipeInternal.Disable(m_sessionID);
+            m_sessionID = 0;
             m_dispatchTask = null;
             // Signal to threads that they can stop waiting since we are done
             m_stoppedEvent.Set();
