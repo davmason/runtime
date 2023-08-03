@@ -151,8 +151,8 @@ namespace System.Diagnostics.Tracing
         {
             Debug.Assert(Monitor.IsEntered(m_dispatchControlLock));
             Debug.Assert(m_dispatchTask == null);
+            Debug.Assert(m_stopDispatchTask == false);
 
-            m_stopDispatchTask = false;
             m_dispatchTask = Task.Factory.StartNew(DispatchEventsToEventListeners, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
         }
 
@@ -203,12 +203,15 @@ namespace System.Diagnostics.Tracing
                 }
             }
 
-            // Disable ourselves and set m_dispatchTask to null to signal that we are done
-            EventPipeInternal.Disable(m_sessionID);
+            ulong currentSessionID = m_sessionID;
             m_sessionID = 0;
             m_dispatchTask = null;
+            m_stopDispatchTask = false;
             // Signal to threads that they can stop waiting since we are done
             m_stoppedEvent.Set();
+
+            // Disable the old session. This can happen asynchronously since we aren't using the old session anymore
+            EventPipeInternal.Disable(currentSessionID);
         }
 
         /// <summary>
