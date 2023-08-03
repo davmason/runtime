@@ -62,6 +62,7 @@ namespace System.Diagnostics.Tracing
                         continue;
                     }
 
+                    Debug.Assert(!m_stopDispatchTask);
                     if (command == EventCommand.Update && enable)
                     {
                         // Add the new subscription.  This will overwrite an existing subscription for the listener if one exists.
@@ -122,7 +123,10 @@ namespace System.Diagnostics.Tracing
             if (m_dispatchTask == null)
             {
                 m_sessionID = EventPipeInternal.Enable(null, EventPipeSerializationFormat.NetTrace, DefaultEventListenerCircularMBSize, providerConfiguration);
-                Debug.Assert(m_sessionID != 0);
+                if (m_sessionID == 0)
+                {
+                    throw new EventSourceException(SR.EventSource_CouldNotEnableEventPipe);
+                }
 
                 // Get the session information that is required to properly dispatch events.
                 EventPipeSessionInfo sessionInfo;
