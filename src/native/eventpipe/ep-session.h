@@ -45,7 +45,7 @@ struct _EventPipeSession_Internal {
 	// True if rundown is enabled.
 	volatile uint32_t rundown_enabled;
 	// ID of the thread performing rundown. Used to filter non rundown events
-	uint64_t rundown_thread_id;
+	volatile uint64_t rundown_thread_id;
 	// Data members used when an streaming thread is used.
 	volatile uint32_t streaming_enabled;
 	// The type of the session.
@@ -77,8 +77,7 @@ EP_DEFINE_GETTER(EventPipeSession *, session, uint32_t, index)
 EP_DEFINE_GETTER(EventPipeSession *, session, EventPipeSessionProviderList *, providers)
 EP_DEFINE_GETTER(EventPipeSession *, session, EventPipeBufferManager *, buffer_manager)
 EP_DEFINE_GETTER_REF(EventPipeSession *, session, volatile uint32_t *, rundown_enabled)
-EP_DEFINE_GETTER(EventPipeSession *, session, uint64_t, rundown_thread_id)
-EP_DEFINE_SETTER(EventPipeSession *, session, uint64_t, rundown_thread_id)
+EP_DEFINE_GETTER_REF(EventPipeSession *, session, volatile uint64_t *, rundown_thread_id)
 EP_DEFINE_GETTER(EventPipeSession *, session, bool, rundown_requested)
 EP_DEFINE_GETTER(EventPipeSession *, session, ep_timestamp_t, session_start_time)
 EP_DEFINE_GETTER(EventPipeSession *, session, ep_timestamp_t, session_start_timestamp)
@@ -183,6 +182,9 @@ ep_session_get_mask (const EventPipeSession *session);
 
 bool
 ep_session_get_rundown_enabled (const EventPipeSession *session);
+
+uint64_t
+ep_session_get_rundown_thread_id (const EventPipeSession *session);
 
 void
 ep_session_set_rundown_enabled (

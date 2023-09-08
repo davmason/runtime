@@ -349,7 +349,6 @@ ep_session_enable_rundown (EventPipeSession *session)
 		ep_raise_error_if_nok (ep_session_add_session_provider (session, session_provider));
 	}
 
-	ep_session_set_rundown_thread_id (session, ep_thread_get_os_thread_id (ep_thread_get ()));
 	ep_session_set_rundown_enabled (session, true);
 	result = true;
 
@@ -520,6 +519,7 @@ ep_session_write_event (
 		return true;
 
 	bool result = false;
+				EP_FAILFAST("Does this work?");
 
 	// Filter events specific to "this" session based on precomputed flag on provider/events.
 	if (ep_event_is_enabled_by_mask (ep_event, ep_session_get_mask (session))) {
@@ -528,12 +528,13 @@ ep_session_write_event (
 			return false;
 		}
 
-		if (ep_session_get_rundown_enabled (session) && (ep_session_get_rundown_thread_id (session) == ep_thread_get_os_thread_id (ep_thread_get ()))) {
+		if (ep_session_get_rundown_enabled (session)) {// && (ep_session_get_rundown_thread_id (session) == ep_thread_get_os_thread_id (ep_thread_get ()))) {
 			EventPipeProvider *provider = ep_event_get_provider (ep_event);
 			const ep_char8_t *provider_name = ep_provider_get_provider_name(provider);
-			if (ep_rt_utf8_string_compare_ignore_case (provider_name, "Microsoft-Windows-DotNETRuntimeRundown") != 0) {
+			printf ("Provider name=%s\n", provider_name);
+			// if (ep_rt_utf8_string_compare_ignore_case (provider_name, "Blah") != 0) {
 				EP_FAILFAST("Saw non rundown provider");
-			}
+			// }
 		}
 
 		if (session->synchronous_callback) {
@@ -611,12 +612,21 @@ ep_session_get_rundown_enabled (const EventPipeSession *session)
 	return (ep_rt_volatile_load_uint32_t (&session->rundown_enabled) != 0 ? true : false);
 }
 
+uint64_t
+ep_session_get_rundown_thread_id (const EventPipeSession *session)
+{
+	EP_ASSERT (session != NULL);
+	return ep_rt_volatile_load_uint64_t (&session->rundown_thread_id);
+}
+
 void
 ep_session_set_rundown_enabled (
 	EventPipeSession *session,
 	bool enabled)
 {
 	EP_ASSERT (session != NULL);
+
+	ep_rt_volatile_store_uint64_t (&session->rundown_thread_id, ep_thread_get_os_thread_id (ep_thread_get ()));
 	ep_rt_volatile_store_uint32_t (&session->rundown_enabled, (enabled) ? 1 : 0);
 }
 
