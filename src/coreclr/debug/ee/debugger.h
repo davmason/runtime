@@ -535,6 +535,96 @@ struct DebuggerPendingFuncEval
 
 typedef DPTR(struct DebuggerPendingFuncEval) PTR_DebuggerPendingFuncEval;
 
+class TypeInModule
+{
+private:
+    Module *m_module;
+    mdTypeDef m_typeDef;
+
+public:
+
+    bool operator ==(const MethodInModule& other) const
+    {
+        return m_module == other.m_module && m_typeDef == other.m_typeDef;
+    }
+
+    bool operator !=(const MethodInModule& other) const
+    {
+        return !(*this == other);
+    }
+
+    bool IsNull()
+    {
+        return m_module == NULL && m_typeDef == 0;
+    }
+
+    INT32 Hash()
+    {
+        return m_module ^ m_typeDef;
+    }
+
+    TypeInModule(Module * module, mdTypeDef typeDef)
+        :m_module(module), m_typeDef(typeDef)
+    {
+        LIMITED_METHOD_DAC_CONTRACT;
+    }
+
+    TypeInModule()
+        :m_module(NULL), m_typeDef(0)
+    {
+        LIMITED_METHOD_DAC_CONTRACT;
+    }
+};
+
+}
+class EMPTY_BASES_DECL CustomNotificationSHashTraits : public DefaultSHashTraits<TypeInModule>
+{
+    public:
+        typedef TypeInModule element_t;
+        typedef TypeInModule key_t;
+        static const bool s_supports_autoremove = true;
+        static const bool s_NoThrow = false;
+        static const bool s_RemovePerEntryCleanupAction = true;
+
+        static BOOL Equals(const TypeInModule &e, const TypeInModule &f)
+        {
+            return e == f;
+        }
+        static OBJECTHANDLE GetKey(constTypeInModule &e)
+        {
+            return e;
+        }
+        static INT32 Hash(const TypeInModule &e)
+        {
+            return e.Hash();
+        }
+        static bool ShouldDelete(const TypeInModule &e)
+        {
+            return e.IsNull();
+        }
+        static TypeInModule Null()
+        {
+            TypeInModule tim;
+            return tim;
+        }
+        static bool IsNull(const TypeInModule &e)
+        {
+            return e.IsNull();
+        }
+        static TypeInModule Deleted()
+        {
+            TypeInModule tim((Module *)-1, -1)
+            return tim;
+        }
+        static bool IsDeleted(const TypeInModule &e)
+        {
+            TypeInModule tim((Module *)-1, -1);
+            return e == tim;
+        }
+};
+typedef SHash<CustomNotificationSHashTraits> CustomNotificationTable;
+#endif
+
 /* ------------------------------------------------------------------------ *
  * DebuggerRCThread class -- the Runtime Controller thread.
  * ------------------------------------------------------------------------ */
@@ -1917,6 +2007,8 @@ public:
                                          Module *classModule,
                                          BOOL fIsLoadEvent);
 
+    BOOL ShouldSendCustomNotification(DomainAssembly *pAssembly, mdTypeDef typeDef);
+
     void SendCatchHandlerFound(Thread *pThread,
                                FramePointer fp,
                                SIZE_T nOffset,
@@ -2218,6 +2310,8 @@ public:
     HRESULT DeoptimizeMethod(Module* pModule, mdMethodDef methodDef);
 #endif //DACCESS_COMPILE
     HRESULT IsMethodDeoptimized(Module *pModule, mdMethodDef methodDef, BOOL *pResult);
+
+    HRESULT UpdateCustomNotificationTable(Module *pModule, mdTypeDef classToken, BOOL enabled);
 
     //
     // The debugger mutex is used to protect any "global" Left Side
@@ -2806,6 +2900,12 @@ private:
     BOOL                  m_unrecoverableError;
     BOOL                  m_ignoreThreadDetach;
     PTR_DebuggerMethodInfoTable   m_pMethodInfos;
+
+    #ifdef DACCESS_COMPILE
+    VOID *m_pCustomNotificationTable;
+    #else
+    CustomNotificationTable *m_pCustomNotificationTable;
+    #endif
 
 
     // This is the main debugger lock. It is a large lock and used to synchronize complex operations
