@@ -8021,6 +8021,7 @@ LONG Debugger::NotifyOfCHFFilter(EXCEPTION_POINTERS* pExceptionPointers, PVOID p
     return EXCEPTION_CONTINUE_SEARCH;
 }
 
+FILE *tempDontCheckin = NULL;
 
 BOOL Debugger::ShouldSendCustomNotification(DomainAssembly *pAssembly, mdTypeDef typeDef)
 {
@@ -8028,13 +8029,19 @@ BOOL Debugger::ShouldSendCustomNotification(DomainAssembly *pAssembly, mdTypeDef
     {
         THROWS;
         GC_NOTRIGGER;
-        MODE_COOPERATIVE;
+        MODE_ANY;
     }
     CONTRACTL_END;
 
     Module *pModule = pAssembly->GetModule();
     TypeInModule tim(pModule, typeDef);
-    return !(m_pCustomNotificationTable->Lookup(tim).IsNull());
+    BOOL result = !(m_pCustomNotificationTable->Lookup(tim).IsNull());
+    if (tempDontCheckin == NULL)
+    {
+        tempDontCheckin = fopen("D:\\output.txt", "w");
+    }
+    fprintf(tempDontCheckin, "Debugger::ShouldSendCustomNotification pModule=%p mdTypeDef=%x result=%d\n", pModule,typeDef, result);
+    return result;
 }
 
 // Actually send the catch handler found event.
@@ -12398,7 +12405,12 @@ HRESULT Debugger::UpdateCustomNotificationTable(Module *pModule, mdTypeDef class
         GC_NOTRIGGER;
     }
     CONTRACTL_END;
-
+    
+    if (tempDontCheckin == NULL)
+    {
+        tempDontCheckin = fopen("D:\\output.txt", "w");
+    }
+    fprintf(tempDontCheckin, "Debugger::UpdateCustomNotificationTable pModule=%p classToken=%x enabled=%d\n", pModule, classToken, enabled);
     TypeInModule tim(pModule, classToken);
     if (enabled)
     {

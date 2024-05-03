@@ -535,6 +535,7 @@ struct DebuggerPendingFuncEval
 
 typedef DPTR(struct DebuggerPendingFuncEval) PTR_DebuggerPendingFuncEval;
 
+#ifndef DACCESS_COMPILE
 class TypeInModule
 {
 private:
